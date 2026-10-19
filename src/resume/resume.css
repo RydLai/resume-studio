@@ -316,3 +316,218 @@
 .r-pages del {
   color: #777777;
 }
+
+/* =========================================================
+   模板：现代（主题色强调 + 顶部色条）
+   ========================================================= */
+
+.r-template--modern .r-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.8mm;
+  background: var(--r-theme);
+}
+
+.r-template--modern .r-hero {
+  padding-left: 10pt;
+  border-left: 3pt solid var(--r-theme);
+}
+
+.r-template--modern .r-name {
+  font-size: calc(var(--r-heading) * 1.32);
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.r-template--modern .r-hero-line--role {
+  color: var(--r-theme);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.r-template--modern .r-section {
+  margin-top: calc(var(--r-section-gap) * 1.05);
+}
+
+.r-template--modern .r-section-tab {
+  display: block;
+  padding-left: 7pt;
+  border-left: 3pt solid var(--r-theme);
+}
+
+.r-template--modern .r-section-tab-text {
+  padding: 0 0 2.4pt;
+  background: transparent;
+  color: var(--r-theme);
+  font-size: calc(var(--r-body) * 0.95);
+  letter-spacing: 0.06em;
+  line-height: 1.45;
+}
+
+.r-template--modern .r-section-tab-tail {
+  display: none;
+}
+
+.r-template--modern .r-section-rule {
+  height: 0.6pt;
+  margin-top: 2pt;
+  background: var(--r-theme);
+  opacity: 0.28;
+}
+
+.r-template--modern .r-entry {
+  margin-top: 6.5pt;
+}
+
+.r-template--modern .r-entry-cell:first-child,
+.r-template--modern .r-entry-cell:first-child strong {
+  color: var(--r-theme);
+}
+
+.r-template--modern .r-entry-cell--last {
+  color: #555555;
+}
+
+.r-template--modern .r-project-title {
+  margin-top: 4pt;
+}
+
+.r-template--modern .r-list {
+  list-style-type: square;
+}
+
+.r-template--modern .r-list li::marker {
+  color: var(--r-theme);
+  font-size: 0.9em;
+}
+
+.r-template--modern .r-code {
+  background: #f0f2f4;
+}
+
+.r-template--modern .r-entry-cell .r-code {
+  background: #edf0f3;
+}
+
+/* =========================================================
+   模板：极简（衬线姓名 + 细线标题 + 无底色）
+   ========================================================= */
+
+.r-template--minimal .r-hero {
+  padding-bottom: 7pt;
+  border-bottom: 0.5pt solid #d8d8d2;
+}
+
+.r-template--minimal .r-name {
+  font-family: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+  font-size: calc(var(--r-heading) * 1.45);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.r-template--minimal .r-hero-line--role {
+  color: #555555;
+  letter-spacing: 0.12em;
+}
+
+.r-template--minimal .r-section {
+  margin-top: calc(var(--r-section-gap) * 1.2);
+}
+
+.r-template--minimal .r-section-tab {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+
+.r-template--minimal .r-section-tab-text {
+  padding: 0;
+  background: transparent;
+  color: #111111;
+  font-size: calc(var(--r-body) * 0.86);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+}
+
+.r-template--minimal .r-section-tab-tail {
+  display: none;
+}
+
+.r-template--minimal .r-section-rule {
+  height: 0.5pt;
+  margin-top: 2.6pt;
+  background: #111111;
+  opacity: 0.35;
+}
+
+.r-template--minimal .r-entry {
+  margin-top: 7pt;
+}
+
+.r-template--minimal .r-entry-cell {
+  color: #444444;
+}
+
+.r-template--minimal .r-entry-cell:first-child {
+  color: #777777;
+  font-variant-numeric: tabular-nums;
+}
+
+.r-template--minimal .r-entry-cell strong {
+  color: #111111;
+  font-weight: 600;
+}
+
+.r-template--minimal .r-project-title {
+  font-family: Georgia, "Times New Roman", "Songti SC", "SimSun", serif;
+  font-size: calc(var(--r-heading) * 0.98);
+  font-weight: 600;
+}
+
+.r-template--minimal .r-para strong {
+  font-weight: 600;
+}
+
+.r-template--minimal .r-list {
+  padding-left: 10pt;
+  list-style: none;
+}
+
+.r-template--minimal .r-list li {
+  position: relative;
+}
+
+.r-template--minimal .r-list li::before {
+  content: "–";
+  position: absolute;
+  left: -10pt;
+  top: 0;
+  color: #999999;
+}
+
+.r-template--minimal .r-code {
+  padding: 0 1.5pt;
+  border-bottom: 0.5pt solid #bbbbbb;
+  border-radius: 0;
+  background: transparent;
+  color: #444444;
+}
+
+.r-template--minimal .r-entry-cell .r-code {
+  height: 15.5pt;
+  padding: 0 5pt;
+  border: 0.5pt solid #c8c8c2;
+  border-bottom: 0.5pt solid #c8c8c2;
+  border-radius: 2pt;
+  background: transparent;
+  color: #333333;
+}
+
+.r-template--minimal .r-hr {
+  border-top: 0.5pt solid #bbbbbb;
+}

@@ -290,7 +290,7 @@ async function renderResumePdf(request: PdfRequest): Promise<Buffer> {
 <style>.r-pages{${cssVars}}</style>
 </head>
 <body>
-<div class="r-pages">${pagesHtml}</div>
+<div class="r-pages r-template--${style.template}">${pagesHtml}</div>
 </body>
 </html>`;
 

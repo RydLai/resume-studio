@@ -467,6 +467,35 @@ try {
   await page.keyboard.press("Escape");
   await page.waitForSelector(".modal", { state: "detached" });
 
+  console.log("8d. 切换三套模板");
+  await page.getByRole("button", { name: "样式", exact: true }).click();
+  await page.waitForSelector(".style-panel");
+  const templates = [
+    { label: "现代", cls: "r-template--modern", clearTab: true },
+    { label: "极简", cls: "r-template--minimal", clearTab: true },
+    { label: "经典", cls: "r-template--classic", clearTab: false },
+  ];
+  for (const template of templates) {
+    await page
+      .getByRole("radio", { name: new RegExp(`^${template.label}`) })
+      .click();
+    await page.waitForTimeout(500);
+    const previewClass = await page.locator(".preview-pages").getAttribute("class");
+    assert.ok(previewClass?.includes(template.cls));
+    assert.ok((await pageCount()) >= 1);
+    const tabBackground = await page.evaluate(() => {
+      const tab = document.querySelector(".r-section-tab-text");
+      return tab ? getComputedStyle(tab).backgroundColor : null;
+    });
+    if (template.clearTab) {
+      assert.equal(tabBackground, "rgba(0, 0, 0, 0)");
+    } else {
+      assert.equal(tabBackground, "rgb(17, 17, 17)");
+    }
+  }
+  await page.getByRole("button", { name: "样式", exact: true }).click();
+  await page.waitForSelector(".style-panel", { state: "detached" });
+
   console.log("9. 通过 API 验证文件校验与错误反馈");
   const api = async (path, options) => {
     const response = await fetch(`${API_URL}${path}`, options);

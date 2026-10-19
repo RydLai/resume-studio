@@ -707,6 +707,151 @@ body.is-dragging-photo * {
   text-transform: uppercase;
 }
 
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.template-card:hover {
+  background: var(--surface-subtle);
+}
+
+.template-card.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.template-thumb {
+  position: relative;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: #ffffff;
+}
+
+.tt-header {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  width: 16px;
+  height: 4px;
+  border-radius: 1px;
+  background: #111111;
+}
+
+.tt-line {
+  position: absolute;
+  left: 4px;
+  height: 1px;
+  background: #d8d8d2;
+}
+
+.tt-line--1 {
+  top: 18px;
+  width: 27px;
+}
+
+.tt-line--2 {
+  top: 23px;
+  width: 22px;
+}
+
+.tt-line--3 {
+  top: 28px;
+  width: 26px;
+}
+
+.template-thumb--classic .tt-header {
+  width: 9px;
+  height: 6px;
+}
+
+.template-thumb--classic .tt-line--1,
+.template-thumb--classic .tt-line--3 {
+  width: 14px;
+  height: 3px;
+  background: #111111;
+}
+
+.template-thumb--modern::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: #111111;
+}
+
+.template-thumb--modern .tt-header {
+  height: 3px;
+  width: 18px;
+}
+
+.template-thumb--modern .tt-line--1,
+.template-thumb--modern .tt-line--3 {
+  height: 2px;
+  width: 10px;
+  background: #111111;
+}
+
+.template-thumb--minimal .tt-header {
+  width: 19px;
+  height: 2px;
+  background: #777777;
+}
+
+.template-thumb--minimal .tt-line {
+  background: #cfcfc8;
+}
+
+.template-thumb--minimal .tt-line--1,
+.template-thumb--minimal .tt-line--3 {
+  width: 28px;
+}
+
+.template-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.template-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.template-desc {
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.template-check {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

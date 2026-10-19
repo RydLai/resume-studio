@@ -8,7 +8,20 @@ export type FontId =
 
 export type PhotoShape = "square" | "rounded" | "circle";
 
+export type TemplateId = "classic" | "modern" | "minimal";
+
+export const TEMPLATE_OPTIONS: Array<{
+  id: TemplateId;
+  label: string;
+  note: string;
+}> = [
+  { id: "classic", label: "经典", note: "黑底标签 · 原稿样式" },
+  { id: "modern", label: "现代", note: "主题色强调 · 顶部色条" },
+  { id: "minimal", label: "极简", note: "衬线姓名 · 细线标题" },
+];
+
 export interface StyleConfig {
+  template: TemplateId;
   /** 正文字号，pt */
   bodySize: number;
   /** 行高倍数 */
@@ -28,7 +41,7 @@ export interface StyleConfig {
   showPhoto: boolean;
   /**
    * 自定义证件照（压缩后的 data URL）。
-   * null 表示使用工作区参考 PDF 中提取的默认照片。
+   * null 表示使用可选的默认照片（public/reference/profile.png）。
    */
   photoDataUrl: string | null;
   /** 照片左上角在 A4 页面中的位置，mm */
@@ -60,6 +73,7 @@ export const FONT_OPTIONS: Array<{ id: FontId; label: string; note?: string }> =
 ];
 
 export const DEFAULT_STYLE: StyleConfig = {
+  template: "classic",
   bodySize: 9.75,
   lineHeight: 1.54,
   headingSize: 12.75,
@@ -98,6 +112,11 @@ export function normalizeStyle(input: unknown): StyleConfig {
   const fontFamily = FONT_OPTIONS.some((f) => f.id === source.fontFamily)
     ? (source.fontFamily as FontId)
     : DEFAULT_STYLE.fontFamily;
+  const template = TEMPLATE_OPTIONS.some(
+    (option) => option.id === source.template,
+  )
+    ? (source.template as TemplateId)
+    : DEFAULT_STYLE.template;
   const color =
     typeof source.themeColor === "string" &&
     /^#[0-9a-f]{6}$/i.test(source.themeColor)
@@ -145,6 +164,7 @@ export function normalizeStyle(input: unknown): StyleConfig {
       : null;
 
   return {
+    template,
     bodySize: round(clamp(num(source.bodySize, DEFAULT_STYLE.bodySize), 7.5, 14), 0.25),
     lineHeight: round(
       clamp(num(source.lineHeight, DEFAULT_STYLE.lineHeight), 1.15, 2.2),

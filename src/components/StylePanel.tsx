@@ -4,6 +4,7 @@ import {
   FONT_OPTIONS,
   PAGE_HEIGHT_MM,
   PAGE_WIDTH_MM,
+  TEMPLATE_OPTIONS,
   type StyleConfig,
 } from "../resume/style";
 
@@ -219,6 +220,44 @@ export function StylePanel({
       </header>
 
       <div className="style-panel-body">
+        <section className="style-group">
+          <h3 className="style-group-title">模板</h3>
+          <div className="template-list" role="radiogroup" aria-label="简历模板">
+            {TEMPLATE_OPTIONS.map((option) => {
+              const active = style.template === option.id;
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  role="radio"
+                  aria-checked={active}
+                  className={`template-card${active ? " is-active" : ""}`}
+                  onClick={() => onChange({ template: option.id })}
+                >
+                  <span
+                    className={`template-thumb template-thumb--${option.id}`}
+                    aria-hidden="true"
+                  >
+                    <span className="tt-header" />
+                    <span className="tt-line tt-line--1" />
+                    <span className="tt-line tt-line--2" />
+                    <span className="tt-line tt-line--3" />
+                  </span>
+                  <span className="template-text">
+                    <span className="template-name">{option.label}</span>
+                    <span className="template-desc">{option.note}</span>
+                  </span>
+                  {active ? (
+                    <span className="template-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="style-group">
           <h3 className="style-group-title">字体</h3>
           <label className="field">
