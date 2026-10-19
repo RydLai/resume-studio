@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-server
+*.local
+.DS_Store
+*.log
+*.tmp
+__smoke-test.md
+__smoke-source.md
+smoke-style.pdf
+
+# 本地个人数据：根目录简历/参考 PDF 与证件照不提交
+/*.md
+!/README.md
+/*.pdf
+/public/reference/profile.png

@@ -1,0 +1,318 @@
+/*
+ * 简历纸张样式：网页预览与 PDF 导出共用这一份样式。
+ * 所有尺寸均由 StyleConfig 生成的 CSS 变量驱动。
+ */
+
+.r-pages {
+  --r-body: 9.75pt;
+  --r-line: 1.54;
+  --r-heading: 12.75pt;
+  --r-mt: 6.1mm;
+  --r-mb: 10.6mm;
+  --r-ml: 10.6mm;
+  --r-mr: 10.6mm;
+  --r-section-gap: 9pt;
+  --r-font: "MiSans", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --r-theme: #111111;
+
+  color: #333333;
+  font-family: var(--r-font);
+  font-size: var(--r-body);
+  line-height: var(--r-line);
+  font-kerning: normal;
+  font-variant-ligatures: normal;
+  text-rendering: optimizeLegibility;
+}
+
+.r-page {
+  position: relative;
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  padding: var(--r-mt) var(--r-mr) var(--r-mb) var(--r-ml);
+  margin: 0;
+  overflow: hidden;
+  background: #ffffff;
+  color: #333333;
+  font-family: var(--r-font);
+  font-size: var(--r-body);
+  line-height: var(--r-line);
+}
+
+.r-page-inner,
+.r-measure-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.r-page-inner {
+  height: 100%;
+}
+
+.r-page-inner > *,
+.r-measure-inner > * {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.r-measure-inner {
+  position: relative;
+  width: calc(210mm - var(--r-ml) - var(--r-mr));
+}
+
+/* ---------- 页眉 ---------- */
+
+.r-hero {
+  padding: 0;
+}
+
+.r-name {
+  margin: 0;
+  color: #111111;
+  font-size: calc(var(--r-heading) * 1.18);
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: 0.1pt;
+  overflow-wrap: anywhere;
+}
+
+.r-name strong {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.r-hero-line {
+  margin: 0;
+  color: #333333;
+  font-size: var(--r-body);
+  line-height: var(--r-line);
+  overflow-wrap: anywhere;
+}
+
+.r-photo {
+  position: absolute;
+  top: var(--r-photo-y);
+  left: var(--r-photo-x);
+  display: block;
+  width: var(--r-photo-w);
+  height: var(--r-photo-h);
+  border-radius: var(--r-photo-radius);
+  object-fit: cover;
+  object-position: center top;
+  z-index: 1;
+}
+
+/* ---------- 大节标题 ---------- */
+
+.r-section {
+  margin-top: var(--r-section-gap);
+}
+
+.r-section-tab {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.r-section-tab-text {
+  display: block;
+  padding: 2.4pt 11pt 2.4pt 7.5pt;
+  background: var(--r-theme);
+  color: #ffffff;
+  font-size: var(--r-body);
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.r-section-tab-tail {
+  display: block;
+  width: 7.5pt;
+  flex: 0 0 7.5pt;
+  background: var(--r-theme);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.r-section-tab-text strong {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.r-section-tab-text a {
+  color: inherit;
+}
+
+.r-section-rule {
+  height: 0.75pt;
+  margin-top: -0.75pt;
+  background: var(--r-theme);
+}
+
+/* ---------- 日期 / 机构 / 职位三列行 ---------- */
+
+.r-entry {
+  display: grid;
+  align-items: baseline;
+  margin-top: 5pt;
+}
+
+.r-entry--3 {
+  grid-template-columns: 34.25% minmax(0, 1fr) auto;
+}
+
+.r-entry--2 {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.r-entry--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.r-entry--many {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 12pt;
+  row-gap: 2pt;
+}
+
+.r-entry-cell {
+  min-width: 0;
+  color: #333333;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.r-entry-cell strong {
+  color: #111111;
+  font-weight: 700;
+}
+
+.r-entry-cell--middle {
+  padding-right: 10pt;
+}
+
+.r-entry-cell--last {
+  text-align: right;
+}
+
+/* 教育背景里 `211` / `双一流` 这类行内代码渲染为浅灰标签 */
+.r-entry-cell .r-code {
+  display: inline-flex;
+  align-items: center;
+  height: 16.5pt;
+  margin: 0;
+  padding: 0 6.2pt;
+  border-radius: 3pt;
+  background: #ededeb;
+  color: #111111;
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+/* ---------- 项目标题 ---------- */
+
+.r-project-title {
+  margin: 3pt 0 2pt;
+  color: #111111;
+  font-size: var(--r-heading);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.r-project-title strong {
+  color: inherit;
+  font-weight: inherit;
+}
+
+/* ---------- 正文段落 ---------- */
+
+.r-para {
+  margin: 0;
+  color: #333333;
+  overflow-wrap: anywhere;
+}
+
+.r-para strong {
+  color: #111111;
+  font-weight: 700;
+}
+
+.r-para--tech {
+  padding-left: 6pt;
+  text-indent: -6pt;
+}
+
+.r-para--note {
+  color: #333333;
+}
+
+/* ---------- 行内代码（技术栈标签） ---------- */
+
+.r-code {
+  display: inline;
+  margin: 0 1.4pt;
+  padding: 1.1pt 4.2pt;
+  border-radius: 2pt;
+  background: #f0f0ed;
+  color: #111111;
+  font-family: inherit;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: inherit;
+  white-space: nowrap;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ---------- 要点列表 ---------- */
+
+.r-list {
+  margin: 4pt 0 0;
+  padding-left: 12.6pt;
+  list-style: disc outside;
+}
+
+.r-list li {
+  color: #333333;
+  overflow-wrap: anywhere;
+}
+
+.r-list li::marker {
+  color: var(--r-theme);
+}
+
+.r-list li strong {
+  color: #111111;
+  font-weight: 700;
+}
+
+/* ---------- 其他 ---------- */
+
+.r-hr {
+  margin: 9pt 0;
+  border: 0;
+  border-top: 0.75pt solid var(--r-theme);
+}
+
+.r-pages a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 0.6pt;
+  text-underline-offset: 1.5pt;
+}
+
+.r-img-alt {
+  color: #555555;
+  font-size: 0.9em;
+}
+
+.r-pages del {
+  color: #777777;
+}
