@@ -1,43 +1,77 @@
 # Resume Studio
 
-一个完全本地运行的 Markdown 简历编辑器与 A4 PDF 生成器。以工作区中的 Markdown 为唯一内容源，以现有 PDF 简历为排版参考，提供实时 A4 预览、样式调整、文件保存和一键导出可搜索的 PDF。
+一个以 Markdown 为唯一内容源、使用 MySQL 保存账号与简历的 A4 简历编辑器。登录后只加载当前账号最后一次保存的简历；没有保存记录的新用户会得到一份可编辑的通用框架。
 
-除当前简历外，也可以从通用空白模板新建简历；提供经典、现代、极简三套可切换模板。证件照支持本地上传、在 A4 预览中直接拖动、调整尺寸与形状，并随样式独立保存。PDF 导出可设置服务端密码，并可选用整站 Basic Auth 限制访问。
+当前版本提供实时 A4 预览、经典/现代/极简三套模板、样式调整和证件照编辑。**不提供注册，也不提供 PDF 导出**。
 
-![Resume Studio 界面](docs/ui.png)
+![登录](docs/login.png)
 
-## 目录
+![编辑器](docs/ui.png)
 
-- [快速开始](#快速开始)
-- [已实现功能](#已实现功能)
-- [使用方式](#使用方式)
-- [Markdown 约定](#markdown-约定)
-- [三种简历模板](#三种简历模板)
-- [样式配置](#样式配置)
-- [PDF 导出方案](#pdf-导出方案)
-- [部署与访问保护](#部署与访问保护)
-- [排版还原依据](#排版还原依据)
-- [文件安全](#文件安全)
-- [项目结构](#项目结构)
-- [开发与测试](#开发与测试)
-- [已知限制](#已知限制)
-- [故障排查](#故障排查)
+## 功能
+
+### 账号与数据
+
+- MySQL 用户登录，**不开放注册**，账号由部署者在 `.env` 的 `SEED_USERS` 中预置。
+- 每个用户一条 `resumes` 记录；保存时写入当前账号的内容，登录时只读取自己的数据。
+- 新用户没有简历记录时自动保存一份通用 Markdown 框架。
+- 可选把项目根目录已有的 `.md` 导入给某个种子用户，作为其初始简历。
+- 密码使用 `scrypt` 加盐哈希存储；登录会话使用 HMAC 签名的 HttpOnly Cookie。
+- 登录尝试按 IP + 用户名限流：10 分钟内最多 5 次。
+- 退出登录会清除会话 Cookie。
+
+### 编辑与预览
+
+- CodeMirror 6：Markdown 语法高亮、行号、自动缩进、括号补全、搜索、撤销/重做。
+- 左右分栏可拖动调整，双击恢复默认比例。
+- 固定 A4 纸张（210 × 297 mm）分页，不是普通 Markdown 阅读页。
+- 前端测量块高度并分页，避免标题与正文分离；列表项可跨页。
+- 缩放 40%–150%，支持按可用宽度适配；内容超出单页时给出提示。
+- 编辑器底部显示行列、字符数、行数与保存状态。
+- `Ctrl+S` 保存到 MySQL，`Ctrl+Shift+Z` 撤销重做。
+
+### 样式与模板
+
+- 经典、现代、极简三套可切换模板。
+- 正文字号、行高、项目标题字号、页边距、模块间距。
+- 字体族（MiSans、微软雅黑、Noto Sans SC、等线、宋体、系统无衬线）。
+- 主题颜色、模块分隔线开关。
+- 证件照上传/更换 PNG、JPEG、WebP，自动压缩；在 A4 预览中拖动位置；调整尺寸与形状；隐藏或恢复默认照片。
+- 样式保存在浏览器 `localStorage`，不写入 Markdown，也不写入 MySQL。
+
+### 安全边界
+
+- 简历 API、照片 API 都要求登录；静态登录页公开。
+- 无注册接口，未登录不能读取或保存简历。
+- 数据只写入 MySQL，不再读写工作区 `.md` 文件。
+- 不使用第三方登录、云服务或 AI API。
 
 ## 快速开始
 
-环境要求：
+### 1. 准备 MySQL
 
-- Node.js 20.19+ / 22.12+（开发时使用 Node 24）
-- 本机安装 Google Chrome 或 Microsoft Edge（用于打印 PDF，不会上传任何内容）
-- Windows / macOS / Linux 均可运行；字体可用性取决于系统
+要求 MySQL 8.0+。先由数据库管理员创建数据库和专用应用账号：
 
-安装依赖：
+```sql
+CREATE DATABASE IF NOT EXISTS resume_studio
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'resume_app'@'%'
+  IDENTIFIED BY '替换为强数据库密码';
+
+GRANT ALL PRIVILEGES ON resume_studio.* TO 'resume_app'@'%';
+FLUSH PRIVILEGES;
+```
+
+也可以直接使用 [scripts/setup-mysql.sql](scripts/setup-mysql.sql) 作为模板。不要用 `root` 或空密码运行应用。
+
+### 2. 安装依赖
 
 ```bash
 npm install
 ```
 
-首次使用请创建本地环境配置：
+### 3. 配置环境变量
 
 ```powershell
 Copy-Item .env.example .env
@@ -48,14 +82,35 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-编辑 `.env`，至少设置：
+编辑 `.env`，至少填写：
 
-- `PDF_EXPORT_PASSWORD`：导出 PDF 时要求的密码，只在服务端读取。
-- `EXPORT_SESSION_SECRET`：用于签名导出会话 Cookie 的随机字符串。
+```dotenv
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
+MYSQL_USER=resume_app
+MYSQL_PASSWORD=你的数据库密码
+MYSQL_DATABASE=resume_studio
 
-`.env` 已被 `.gitignore` 排除，不会提交到仓库。若未设置 `PDF_EXPORT_PASSWORD`，导出功能会自动关闭，界面会提示服务器未配置密码。
+APP_SESSION_SECRET=随机长字符串
+SEED_USERS=你的用户名:你的登录密码
+```
 
-开发模式（Vite + Express）：
+生成会话密钥：
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+如需把现有 Markdown 作为初始简历导入：
+
+```dotenv
+SEED_RESUME_USER=你的用户名
+SEED_RESUME_FILE=resume.md
+```
+
+文件必须是项目根目录下的 `.md`，且只在目标用户还没有简历记录时使用一次。
+
+### 4. 启动
 
 ```bash
 npm run dev
@@ -70,98 +125,66 @@ npm run build
 npm start
 ```
 
-打开 <http://127.0.0.1:3001>。Express 会同时提供 `dist/` 静态页面与本地 API。
+打开 <http://127.0.0.1:3001>。Express 同时提供 `dist/` 和 API。
 
-默认启动时会扫描工作区根目录，自动打开最新的 `.md` 简历（`README.md` 会被排除），并读取同目录 PDF 作为只读样式参考。
+首次启动会自动建表，并创建尚不存在的 `SEED_USERS` 用户；已有用户不会因环境变量变更而重置密码。
 
-> 公开仓库不包含个人简历、参考 PDF 或证件照。首次启动若没有 `.md`，可点击「打开 → 新建空白简历」，或把你的 Markdown 放入根目录；参考 PDF 和默认照片都是可选项。
-
-### 环境变量
+## 环境变量
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `PORT` | `3001` | Express 端口，仅生产模式影响页面地址 |
-| `HOST` | `127.0.0.1` | 监听地址，默认只允许本机访问 |
-| `PDF_EXPORT_PASSWORD` | 空 | PDF 导出密码；为空时导出关闭。只在服务端读取 |
-| `EXPORT_SESSION_SECRET` | 启动时随机生成 | 导出会话 Cookie 的签名密钥；设置固定值可在重启后保留会话 |
-| `APP_ACCESS_USER` | `resume` | 可选整站 Basic Auth 用户名 |
-| `APP_ACCESS_PASSWORD` | 空 | 可选整站访问密码；设置后整个站点和 API 都需要 Basic Auth |
-| `CHROME_PATH` | 自动探测 | 手动指定 Chrome/Edge/Chromium 可执行文件 |
-| `CHROME_NO_SANDBOX` | 空 | 设为 `1` 时为 Chromium 添加 `--no-sandbox`（root/容器环境） |
-| `TRUST_PROXY` | 空 | 位于可信反向代理后时设为 `1`，用于正确识别 HTTPS 与客户端 IP |
+| `PORT` | `3001` | Express 端口 |
+| `HOST` | `127.0.0.1` | 监听地址 |
+| `MYSQL_HOST` | `127.0.0.1` | MySQL 地址 |
+| `MYSQL_PORT` | `3306` | MySQL 端口 |
+| `MYSQL_USER` | `root` | 数据库应用账号，建议专用账号 |
+| `MYSQL_PASSWORD` | 空 | 数据库密码 |
+| `MYSQL_DATABASE` | `resume_studio` | 数据库名 |
+| `APP_SESSION_SECRET` | 启动时随机生成 | 登录 Cookie 的签名密钥；固定值可在重启后保留会话 |
+| `SEED_USERS` | 空 | 逗号分隔的 `用户名:密码`，只创建不存在的用户 |
+| `SEED_RESUME_USER` | 空 | 要导入初始 Markdown 的用户名 |
+| `SEED_RESUME_FILE` | 空 | 项目根目录下的 `.md` 文件 |
+| `TRUST_PROXY` | 空 | 在可信 HTTPS 反向代理后设为 `1` |
 
-示例：
+`.env` 已被 `.gitignore` 排除，不会提交。
 
-```powershell
-$env:PORT="3002"
-npm start
+## 登录与用户数据
+
+### 默认用户
+
+账号没有注册界面。部署时在 `.env` 中配置：
+
+```dotenv
+SEED_USERS=alice:一个强密码,bob:另一个强密码
 ```
 
-## 已实现功能
+首次启动时会创建不存在的用户；已存在的用户名不会更新密码。需要改密码时，应由数据库管理员更新 `users.password_hash`，或删除用户后重新初始化。
 
-### 编辑器
+### 每个用户保存什么
 
-- CodeMirror 6，Markdown 语法高亮、行号、自动缩进、括号补全、搜索、撤销/重做（`Ctrl+Z` / `Ctrl+Shift+Z`）；选中文本有清晰高亮，当前光标行也不会遮住选区。
-- 左右分栏，中间分隔条可拖动调整宽度，双击恢复默认比例；比例持久化。
-- 自动保存本地草稿，刷新页面后恢复未保存内容；页面隐藏时同步落盘草稿。
-- `Ctrl+S` 保存到当前工作区文件，`Ctrl+Shift+S` 另存为，`Ctrl+O` 打开文件。
-- 编辑器底部显示行列、字符数、行数与保存状态。
+- `users`：账号、`scrypt` 密码哈希、显示名、创建时间。
+- `resumes`：`user_id` 主键、Markdown 内容、最后更新时间。
+- 登录后 `GET /api/resume` 只返回当前账号的内容。
+- 点击「保存」或 `Ctrl+S` 执行 `PUT /api/resume`，覆盖当前账号的最后保存内容。
+- 没有 `resumes` 记录的用户会得到通用框架，并插入一条记录。
+- 浏览器刷新后如果会话仍有效，会重新加载最后保存的内容；未保存的编辑不会持久化。
 
-### 预览
+### 会话
 
-- 按固定 A4 纸张（210 mm × 297 mm）分页渲染，不是普通 Markdown 阅读页。
-- 预览与 PDF 使用同一套 React 组件与 CSS 模板。
-- 分页在浏览器中完成：测量块高度、避免标题/经历标题与正文分离、列表项可独立跨页。
-- 缩放范围 40%–150%，默认按可用宽度适配。
-- 多页时显示页数提示；单块内容超过一页时显示错误提示并暂停导出。
-- 不自动缩小字体来强行凑一页。
-
-### 样式
-
-- 三套可切换模板：经典、现代、极简。
-- 正文字号、行高、项目标题字号。
-- 上/下/左/右页面边距。
-- 模块间距。
-- 字体族（MiSans、微软雅黑、Noto Sans SC、等线、宋体、系统无衬线）。
-- 主题颜色。
-- 是否显示模块分隔线。
-- 照片：上传/更换 PNG、JPEG、WebP，自动压缩；在 A4 预览中直接拖动位置；调整宽高、形状（直角/圆角/圆形）；复位到右上；隐藏或恢复默认照片。
-- 修改实时生效，并独立保存在 `localStorage`，不写入 Markdown。
-
-### 文件
-
-- 启动自动加载最新 Markdown 简历。
-- 打开工作区内的其他 `.md` 文件。
-- 从电脑导入 `.md` 文件。
-- 新建一份通用空白简历模板，按需改写后另存为。
-- 保存到原工作区文件；另存为新的 `.md` 文件。
-- 保存前校验文件名、路径与扩展名；写入失败、文件已存在、权限问题等均有反馈。
-- 逐行保留已有文件中未改动行的原始换行符（支持 CRLF/LF 混用）；未编辑时直接保存是字节级不变的。
-- 永远不会写入参考 PDF；导出的 PDF 只通过浏览器下载，不在服务端落盘。
-
-### PDF
-
-- 默认文件名 `resume.pdf`，A4 页面。
-- 导出受服务端密码保护：密码只从环境变量读取，前端和后端响应都不包含密码。
-- 首次导出时弹出密码框；验证成功后服务端下发 2 小时有效的 HttpOnly 会话 Cookie，同一会话内再次导出无需重复输入。
-- 密码错误会被拒绝；同一 IP 10 分钟内最多尝试 5 次，超过后临时锁定。
-- 中文字体嵌入；文字可选择、复制、搜索，不是整页图片。
-- 保留超链接（`http/https/mailto/tel`）。
-- 打印背景色、主题色、标签底色。
-- 页面数量与预览一致；没有空白页。
-- 内容多时自然分页，不强制压缩。
+- Cookie 名：`resume_session`。
+- `HttpOnly`、`SameSite=Lax`；HTTPS 下带 `Secure`。
+- 有效期 7 天。
+- 退出登录会清除 Cookie。
+- 登录失败返回统一错误，避免泄露用户名是否存在。
 
 ## 使用方式
 
-1. 启动后确认顶部文件名是目标 Markdown，或点击「打开 → 新建空白简历」从模板开始。
-2. 在左侧编辑内容，右侧立即更新 A4 预览。
-3. 在「样式」面板选择经典/现代/极简模板，并调整字号、行高、边距、字体、主题色和分隔线。
-4. 在「照片」区域上传图片，然后直接在右侧预览中拖动照片，或用 X/Y/宽高精确调整。
-5. 点击「保存」写回工作区文件；「另存为」创建新文件；浏览器草稿会自动保存。
-6. 点击「导出 PDF」，输入服务端配置的导出密码；验证通过后浏览器下载 `resume.pdf`。
-7. 「打开」可切换工作区文件、导入电脑上的 Markdown、新建空白简历，或在新标签页查看参考 PDF。
-
-> 从电脑导入或新建的文件只存在于当前页面状态中。要持久化，请使用「另存为」写入工作区。工作区文件的未保存草稿会在刷新后恢复。
+1. 打开页面，输入部署时预置的账号和密码。
+2. 登录后左侧编辑 Markdown，右侧实时更新 A4 预览。
+3. 在「样式」面板选择经典/现代/极简模板，调整字号、行高、边距、字体、主题色和分隔线。
+4. 在「照片」区域上传图片，在预览中拖动或输入 X/Y/宽高。
+5. 点击「保存」或按 `Ctrl+S` 写入 MySQL。
+6. 点击「退出」结束会话。
 
 ## Markdown 约定
 
@@ -174,7 +197,7 @@ npm start
 **2024.09 — 2027.06**
 
 :::
-**示例大学**  `示例标签`
+**示例大学**  `211` `双一流`
 
 :::
 **计算机技术 · 硕士**
@@ -183,31 +206,28 @@ npm start
 入学成绩排名 1/35
 ```
 
-- `::: start` 与 `::: end` 之间是一个三列行。
-- 中间的 `:::` 是列分隔符，依次对应：左侧日期、中间机构/项目名、右侧职位/学位。
+- 第一块为日期，第二块为机构/项目，第三块为专业/职位。
 - 两列时自动按「左 + 右」布局；单列时占满整行。
-- 块后紧随的普通文本（例如「入学成绩排名」）作为该条目的补充说明。
-- 仅包含空白或 `ㅤ` 占位符的 `:::` 块会被视为排版留白，不输出可见内容，避免产生空白页。
+- 块后紧随的普通文本作为该条目的补充说明。
+- 仅包含空白或 `ㅤ` 占位符的 `:::` 块会被忽略。
 
-一行以 `` ` `` 包裹的内容在正文中渲染为浅灰技术栈标签；在三列行中渲染为 `示例标签` 这类标签。
-
-出于安全考虑，Markdown 中的原始 HTML 不会执行或渲染，链接只允许 `http`、`https`、`mailto`、`tel` 和页内锚点；正文中的图片语法只显示替代文字。证件照通过样式面板上传和拖动，不依赖 Markdown 中的图片链接。
+行内代码在正文中渲染为浅灰技术栈标签；在三列行中作为标签。原始 HTML 不渲染，链接只允许 `http`、`https`、`mailto`、`tel` 和页内锚点。
 
 ## 三种简历模板
 
 ![三种简历模板](docs/templates.png)
 
-三套模板共用同一份 Markdown、照片和样式配置，在「样式 → 模板」中即时切换，网页预览与 PDF 同步生效。
+三套模板共用同一份 Markdown、照片和样式配置，在「样式 → 模板」中切换：
 
-- **经典 Classic**：黑底白字模块标签、右侧斜切收尾、三列经历与浅灰标签，最接近原稿样式。
-- **现代 Modern**：页面顶部主题色条、页眉左侧强调线、主题色模块标题、方形要点，日期使用主题色。
-- **极简 Minimal**：衬线姓名与项目标题、细线模块标题、短横线要点、描边标签，留白更克制。
+- **经典 Classic**：黑底白字模块标签、三列经历、浅灰标签。
+- **现代 Modern**：顶部主题色条、页眉左侧强调线、主题色模块标题、方形要点。
+- **极简 Minimal**：衬线姓名与项目标题、细线模块标题、短横线要点、描边标签。
 
-模板只改变版式；字号、行高、边距、字体、主题色、照片位置与尺寸仍然独立生效。切换模板不会修改 Markdown，也不会移动照片。
+模板只改变版式；字号、行高、边距、字体、主题色、照片位置与尺寸仍然独立生效。
+
+![样式面板](docs/ui-style-panel.png)
 
 ## 样式配置
-
-默认值来自对参考 PDF 的测量：
 
 | 项目 | 默认值 |
 | --- | --- |
@@ -218,91 +238,67 @@ npm start
 | 正文字号 | 9.75 pt |
 | 行高 | 1.54 |
 | 项目标题 | 12.75 pt |
-| 姓名 | 标题字号 × 1.18 ≈ 15 pt |
+| 姓名 | 标题字号 × 1.18 |
 | 模块间距 | 9 pt |
-| 字体 | MiSans（参考稿 Alibaba PuHuiTi 的近似替代） |
-| 正文/粗体颜色 | `#333333` / `#111111` |
+| 字体 | MiSans |
 | 主题色 | `#111111` |
-| 默认照片 | 若工作区存在 `public/reference/profile.png` 则使用；否则无默认照片，可上传替换 |
-| 自定义照片 | 上传后压缩为最长边 900px 的 JPEG，可拖动/缩放/改形状 |
+| 默认照片 | 若存在 `public/reference/profile.png` 则使用 |
 
-照片位置以 A4 页面左上角为原点，单位为 mm；默认 `X=175.3, Y=6.1`。可直接在预览中拖动，也可以在样式面板输入精确值，或点击「复位到右上」。
+样式保存在浏览器 `localStorage` 的 `resume-studio:style:v1`。它不按用户隔离；同一浏览器的不同账号共享样式和本地照片。
 
-修改样式会重新分页。样式（包括自定义照片）保存在浏览器 `localStorage` 的 `resume-studio:style:v1`，草稿按文件保存在 `resume-studio:draft:v1:*`。
+## 数据模型
 
-## PDF 导出方案
+应用启动时自动创建以下表：
 
-1. 点击导出时先校验密码会话；未验证则弹出密码框，服务端 `/api/export-auth` 验证密码并下发 HttpOnly Cookie。
-2. 前端完成分页，生成多个固定 A4 尺寸的 `.r-page` 元素。
-3. 导出时只读取这些 `.r-page` 的 `outerHTML`，连同当前样式配置发送给 API；`/api/export-pdf` 再次校验导出会话。
-4. 服务端用 `sanitize-html` 白名单清洗 HTML：默认照片替换为内联 data URI；自定义照片本身已是压缩后的 JPEG data URI，只允许 `data:image/*` 形式进入 `<img>`。
-5. 服务端注入共享的 `src/resume/resume.css`、打印 CSS 和样式变量。
-6. `playwright-core` 启动本机 Chrome/Edge，设置 `@page { size: A4; margin: 0 }`，以 `printBackground: true`、`preferCSSPageSize: true` 打印。
-7. 生成的 PDF 直接以二进制返回，浏览器下载为 `resume.pdf`。
+```sql
+CREATE TABLE users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  display_name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_users_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-因为预览和 PDF 共用同一套 DOM 结构与 CSS，只存在打印引擎的极小度量差异；PDF 仍是矢量文字，可搜索、复制和选中。
-
-打印页面会阻止所有外部 HTTP(S) 请求，只允许内联字体/图片数据，避免把简历内容发到网络。
-
-## 部署与访问保护
-
-### 导出密码
-
-导出密码只在服务端校验，流程如下：
-
-1. 点击「导出 PDF」时，前端先请求 `/api/export-auth` 检查当前会话。
-2. 未验证时弹出密码框，密码通过 HTTPS 发送到 `/api/export-auth`。
-3. 校验成功后，服务端下发 2 小时有效的 HttpOnly、SameSite=Strict Cookie；`/api/export-pdf` 检查这个 Cookie，验证失败返回 `401`。
-4. 同一 IP 10 分钟内最多尝试 5 次；连续错误后临时锁定。
-5. 密码不会出现在前端 bundle、API 响应或仓库中；`.env` 已被 `.gitignore` 排除。
-
-`.env` 至少设置：
-
-```dotenv
-PDF_EXPORT_PASSWORD=替换为你的导出密码
-EXPORT_SESSION_SECRET=替换为随机长字符串
+CREATE TABLE resumes (
+  user_id INT UNSIGNED NOT NULL,
+  content LONGTEXT NOT NULL,
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (user_id),
+  CONSTRAINT fk_resumes_user FOREIGN KEY (user_id)
+    REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-生成随机签名密钥：
+数据库只需创建空库；表结构由应用初始化。
 
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
+## 部署
 
-如果 `EXPORT_SESSION_SECRET` 不设置，服务启动时会生成临时密钥；重启后已有导出会话会失效，需要重新输入密码。
-
-### 服务器部署
+### 服务器
 
 ```bash
 npm ci
 npm run build
-PDF_EXPORT_PASSWORD='替换为你的导出密码' \
-EXPORT_SESSION_SECRET='替换为随机长字符串' \
+
 HOST=127.0.0.1 PORT=3001 \
+MYSQL_HOST=127.0.0.1 \
+MYSQL_USER=resume_app \
+MYSQL_PASSWORD='数据库密码' \
+MYSQL_DATABASE=resume_studio \
+APP_SESSION_SECRET='随机长字符串' \
+SEED_USERS='你的用户名:你的登录密码' \
 npm start
 ```
 
-也可以把变量写入服务器上的 `.env`，启动时会自动加载。建议限制文件权限：
+更推荐把变量写入服务器上的 `.env`，并限制权限：
 
 ```bash
 chmod 600 .env
 ```
 
-服务器需要安装 Chrome/Chromium（PDF 打印依赖）和中文字体。Debian/Ubuntu 示例：
-
-```bash
-sudo apt update
-sudo apt install -y chromium fonts-noto-cjk
-export CHROME_PATH=/usr/bin/chromium
-```
-
-若以 root 运行 Chromium，通常还需要：
-
-```dotenv
-CHROME_NO_SANDBOX=1
-```
-
-生产环境建议让 Express 只监听 `127.0.0.1`，由 Nginx/Caddy 提供 HTTPS 并反向代理到 `3001`。Caddy 示例：
+应用只监听 `127.0.0.1`，由 Nginx/Caddy 提供 HTTPS 并反向代理到 `3001`。Caddy 示例：
 
 ```caddyfile
 resume.example.com {
@@ -310,211 +306,143 @@ resume.example.com {
 }
 ```
 
-> 必须使用 HTTPS。否则导出密码和站点访问密码会以明文经过网络。
-
-反向代理后建议同时设置：
+反向代理后设置：
 
 ```dotenv
 TRUST_PROXY=1
 ```
 
-这样 Express 才能正确识别 HTTPS 与真实客户端 IP（密码尝试限流依赖 IP）。
+### 无域名时只通过 SSH 访问
 
-### 只让自己访问
+如果服务器没有域名或不想把应用暴露到公网，可以让 Express 只监听 `127.0.0.1`，然后在本机建立 SSH 隧道：
 
-只给 PDF 导出加密码，**不会保护简历内容本身**：任何人仍可打开页面、读取 `/api/bootstrap` 和编辑内容。要真正做到“只让自己使用”，建议再加一层整站访问密码：
-
-```dotenv
-APP_ACCESS_USER=resume
-APP_ACCESS_PASSWORD=替换为你的站点访问密码
+```bash
+ssh -L 3001:127.0.0.1:3001 root@服务器IP
 ```
 
-设置后整个站点和 API 都会启用 HTTP Basic Auth（`/api/health` 除外），浏览器会先要求输入站点用户名和密码，导出 PDF 时再输入一次导出密码。也可以不设置这项，改用反向代理 Basic Auth、VPN 或 Tailscale 限制访问。
+打开 <http://127.0.0.1:3001> 即可访问。这样登录页和简历 API 都不直接暴露在公网，适合个人使用。
 
-导出密码和站点访问密码可以使用同一个密码，也可以分开；推荐分开，避免一处泄露影响全部。密码通过环境变量或 `.env` 配置，不要提交到仓库。
+### 数据库权限
 
-## 排版还原依据
+应用账号只需要 `resume_studio` 库的权限，不需要全局权限，更不要使用无密码的 `root`。数据库不要直接暴露在公网；只允许应用服务器访问 3306。
 
-对参考 PDF 的测量结果（开发时使用本地参考文件，未纳入公开仓库）：
+### 会话与 HTTPS
 
-- 页面：A4，约 595.9 × 841.9 pt。
-- 左右边距 30 pt（10.6 mm），下边距 30 pt，上边距约 17.2 pt（6.1 mm）。
-- 正文字号 9.74 pt，行高 15 pt；项目标题 12.74 pt；姓名 15 pt。
-- 大节标题为黑底白字标签，高约 19.5 pt，右侧斜切收尾；标签下方为 0.75 pt 横线。
-- 三列经历行：日期左对齐、机构/项目在约 34.25% 处开始、职位右对齐。
-- 教育经历中的 `211`/`双一流` 为浅灰圆角标签；技术栈为浅灰行内标签。
-- 证件照默认约 22 mm × 27 mm，位于页面右上、内容区内侧约 6 pt；位置、尺寸和形状可在样式面板/预览中调整。
-- 正文 `#333333`，粗体与标题 `#111111`，强调只靠字重和少量浅灰底色。
-
-这些规则集中在 `src/resume/resume.css` 与 `src/resume/style.ts`，便于后续微调。
-
-## 文件安全
-
-- 服务端只写入工作区根目录下的 `.md` 文件，拒绝路径分隔符、`..`、隐藏文件、`README.md` 和非 Markdown 扩展名。
-- 参考 PDF 只读；保存接口不可能写入 PDF，也不会覆盖它。
-- Markdown 读取会去除 BOM，并把行尾统一为 LF；写回已有文件时逐行恢复未改动行的原始 CRLF/LF（参考稿本身是混用行尾）。
-- 写入采用临时文件 + rename，失败时清理临时文件并返回具体错误。
-- 服务默认只监听 `127.0.0.1`。
-- PDF HTML 经过服务端白名单清洗，原始脚本、事件属性、危险 URL 均被移除；自定义照片只允许 `data:image/png|jpeg|webp` 数据进入 `<img>`。
-- 上传的照片只保存在浏览器 `localStorage` 的样式配置里，不会写入工作区文件；导出时随页面发送给本地 PDF 服务。
-- PDF 导出需要服务端密码；密码只存在 `.env`/环境变量中，前端 bundle 不含密码。
-- 可选整站 Basic Auth 由服务端校验；启用后站点和 API 均需认证。
-- 不使用数据库、第三方登录、云服务或 AI API；唯一的会话状态是签名后的导出 Cookie。
-
-## 项目结构
-
-```text
-resume-generator/
-├── .env.example                  # 环境变量示例（复制为 .env，不提交 .env）
-├── resume.md                     # 可选：你的本地简历（不纳入公开仓库）
-├── reference.pdf                 # 可选：本地样式参考 PDF（不纳入公开仓库）
-├── docs/
-│   ├── ui.png
-│   ├── ui-style-panel.png
-│   ├── templates.png
-│   ├── pdf-page1.png
-│   └── generated-resume.pdf
-├── public/
-│   └── favicon.svg
-├── scripts/
-│   ├── smoke-test.mjs             # Playwright 验收脚本（自建通用测试数据）
-│   └── export-auth-test.mjs       # 导出密码/会话验证脚本
-├── server/
-│   ├── index.ts                   # Express 路由、静态服务、可选整站 Basic Auth
-│   ├── exportAuth.ts              # 导出密码、会话 Cookie、尝试限流
-│   ├── files.ts                   # 扫描、读取、原子写入
-│   ├── pdf.ts                     # 清洗 HTML、Chrome 打印 PDF
-│   └── errors.ts
-├── src/
-│   ├── App.tsx                    # 应用状态、文件操作、快捷键
-│   ├── api.ts
-│   ├── storage.ts
-│   ├── types.ts
-│   ├── components/
-│   │   ├── Toolbar.tsx
-│   │   ├── MarkdownEditor.tsx
-│   │   ├── PreviewPane.tsx
-│   │   ├── SplitPane.tsx
-│   │   ├── StylePanel.tsx
-│   │   ├── Dialogs.tsx
-│   │   └── ToastStack.tsx
-│   ├── resume/
-│   │   ├── parser.ts              # Markdown → 简历块
-│   │   ├── InlineMarkdown.tsx     # 行内 Markdown（禁用原始 HTML）
-│   │   ├── ResumeBlocks.tsx       # 简历组件
-│   │   ├── usePagination.ts       # A4 分页
-│   │   ├── photo.ts               # 图片压缩/白底 JPEG 转换
-│   │   ├── template.ts            # 新建空白简历模板
-│   │   ├── style.ts               # 样式类型、默认值、CSS 变量
-│   │   └── resume.css             # 预览/PDF 共用纸张样式
-│   └── styles/app.css             # 编辑器界面样式
-├── index.html
-├── vite.config.ts
-├── tsconfig.json
-├── package.json
-└── README.md
-```
-
-`README.md` 会被扫描逻辑排除，不会被当作简历。
+- 必须使用 HTTPS，否则登录密码和会话 Cookie 会以明文经过网络。
+- 若 `APP_SESSION_SECRET` 不固定，重启后现有登录会话失效。
+- 修改 MySQL 密码后同步更新 `.env` 并重启。
 
 ## 开发与测试
 
 ```bash
 npm run typecheck   # TypeScript 类型检查
 npm run build       # 类型检查 + Vite 生产构建
-npm run dev         # 启动 API 5173/3001 开发服务
-npm run start       # 启动生产服务（需先 build）
+npm run dev         # Vite + Express
+npm start           # 生产服务（先 build）
 ```
 
-浏览器验收脚本（需先把 `.env.example` 复制为 `.env` 并设置 `PDF_EXPORT_PASSWORD`，然后启动 `npm run dev`）：
+浏览器验收脚本（需要可用的 `.env`、MySQL 和已启动的 `npm run dev`）：
 
 ```bash
 node scripts/smoke-test.mjs
-node scripts/export-auth-test.mjs
 ```
 
-`smoke-test.mjs` 使用环境变量中的导出密码完成鉴权，自建通用测试数据 `__smoke-source.md`，并创建 `__smoke-test.md`；结束时删除这两个文件，同时保留 `smoke-style.pdf` 供人工检查。三个文件都在 `.gitignore` 中排除。
+脚本使用 `SEED_USERS` 中的第一个用户，覆盖：
 
-`export-auth-test.mjs` 专门验证密码弹窗、错误密码拒绝、正确密码导出、HttpOnly 会话 Cookie、同会话免输入和新会话重新验证。
+1. 未登录只显示登录页，无简历内容、无注册入口。
+2. 错误密码被拒绝。
+3. 正确登录后加载当前账号简历，界面不再包含 PDF/打开/另存为按钮。
+4. 登录 Cookie 为 HttpOnly。
+5. 编辑并保存后，MySQL 内容包含新修改。
+6. 刷新后保持登录并读取已保存内容。
+7. 退出登录回到登录页。
+8. 未登录访问 `/api/resume` 返回 `401`。
 
-脚本覆盖：
+脚本会在结束时通过已登录 API 恢复原内容。
 
-1. 自动加载通用测试 Markdown，验证 A4 渲染与分页。
-2. 在同一页内逐字编辑，校验预览即时刷新（不依赖页数变化）；当前光标行的选区高亮可见。
-3. 另存为临时文件，避免修改测试源文件。
-4. 编辑内容，校验预览实时更新。
-5. 保存到磁盘并刷新，校验内容一致。
-6. 不保存直接刷新，校验草稿恢复。
-7. 修改字号、行高、标题、边距、模块间距、主题色、分隔线与照片显示开关，校验预览和持久化。
-8. 上传测试图片，校验自动压缩、缩略图、预览拖动、X/Y 更新和 localStorage 持久化。
-9. 在自定义样式下验证导出密码并实际导出 PDF。
-10. 检查每页没有内部溢出。
-11. 恢复默认样式后，用短内容验证单页排版。
-12. 从电脑导入本地 Markdown。
-13. 通过「打开 → 新建空白简历」验证通用模板与另存为入口。
-14. 校验路径穿越、保留名、非 Markdown、重复文件、空页面等 API 错误。
-15. 校验无页面异常、无 XSS、通用测试源文件哈希不变。
-16. 依次切换经典/现代/极简模板，校验预览模板类、标题样式与分页。
+## 项目结构
 
-实际验收结果（基于通用测试数据）：
+```text
+resume-generator/
+├── .env.example
+├── docs/
+│   ├── login.png
+│   ├── ui.png
+│   ├── ui-style-panel.png
+│   └── templates.png
+├── public/
+│   └── favicon.svg
+├── scripts/
+│   ├── setup-mysql.sql
+│   └── smoke-test.mjs
+├── server/
+│   ├── index.ts          # Express 路由、静态服务
+│   ├── db.ts             # MySQL 连接与建表
+│   ├── auth.ts           # 密码哈希、登录、会话、种子用户
+│   ├── resumeStore.ts    # 按用户读取/保存 Markdown
+│   └── errors.ts
+├── src/
+│   ├── App.tsx
+│   ├── api.ts
+│   ├── storage.ts
+│   ├── types.ts
+│   ├── components/
+│   │   ├── LoginScreen.tsx
+│   │   ├── Toolbar.tsx
+│   │   ├── MarkdownEditor.tsx
+│   │   ├── PreviewPane.tsx
+│   │   ├── SplitPane.tsx
+│   │   ├── StylePanel.tsx
+│   │   └── ToastStack.tsx
+│   ├── resume/
+│   │   ├── parser.ts
+│   │   ├── InlineMarkdown.tsx
+│   │   ├── ResumeBlocks.tsx
+│   │   ├── usePagination.ts
+│   │   ├── photo.ts
+│   │   ├── template.ts
+│   │   ├── style.ts
+│   │   └── resume.css
+│   └── styles/app.css
+├── index.html
+├── package.json
+├── vite.config.ts
+└── README.md
+```
 
-- 通用测试简历：1 页 A4；包含教育背景、工作经历、项目经验、专业技能。
-- 同页增量编辑：输入字符后预览在 1 帧内更新（实测约 3 ms），撤销后同步恢复；当前行与普通行的选区高亮均可见。
-- 示例导出：[docs/generated-resume.pdf](docs/generated-resume.pdf)，1 页，约 309 KB；中文文字可提取。
-- 三套模板均导出 1 页 PDF：[模板对比](docs/templates.png)。经典黑底标签、现代顶部色条/左侧强调、极简衬线姓名/细线标题均正常；无页面内部溢出。
-- 自定义照片：上传 800×1000 测试照片后自动压缩为 720×900 JPEG 嵌入 PDF；拖动后 X/Y 从 175.3/6.1 变为 130.2/55，刷新后照片、位置、尺寸、圆角形状均保持。
-- 自定义样式导出：1 页；4×4 测试照片以 data URI 嵌入 PDF；`mailto:` 与 `https://` 链接均生成 PDF 链接注释。
-- 导出鉴权：未验证请求返回 `401`；错误密码被拒绝；正确密码成功下载 PDF；会话 Cookie 为 HttpOnly + SameSite=Strict；同一会话再次导出免输入；新会话重新要求密码。
-- 可选整站 Basic Auth：未认证访问返回 `401` 与 `WWW-Authenticate`；正确凭据返回 `200`；`/api/health` 保持公开。
-- 新建空白简历：渲染为 1 页，包含教育背景/工作经历/项目经验/专业技能模板；点击保存正确进入「另存为 Markdown」。
-- 所有预览页面 `scrollHeight <= clientHeight + 1`，没有页面内部裁切。
-- 保存未编辑内容时保留原有 CRLF/LF 行尾；通用测试源文件在测试前后哈希不变。
-- 公开仓库不包含真实简历、参考 PDF 或证件照；测试使用自建的通用 fixture。
+`README.md`、`resume.md`、参考 PDF 和本地证件照都不会被提交；公开仓库只包含代码与通用截图。
 
 ## 已知限制
 
-1. **字体依赖本机**。参考稿使用 Alibaba PuHuiTi 2.55 Regular；本机未安装该字体，默认用 MiSans 近似，可在样式面板切换微软雅黑/等线/Noto Sans SC/宋体。未安装所选字体时会回退到系统无衬线字体。
-2. **MiSans/Noto Sans SC 的 PDF 字体嵌入形式**。Chrome 打印 OTF/可变字体时可能以 Type3 矢量字形嵌入；文字仍可选择、复制、搜索（已用 PyMuPDF、pypdf 验证），但若更看重 PDF 字体的通用性，建议选择微软雅黑或等线，导出为标准 Type0 字体。
-3. **不自动压缩到一页**。内容超出时自然分页并提示；不通过缩小字号强行塞入一页。
-4. **单个块超过一页时不导出**。例如一整段超长文字本身就高于 A4 内容区，界面会提示拆分或调小字号，并暂停导出，避免生成被裁切的 PDF。
-5. **从电脑导入或新建的文件不直接写回原路径**。浏览器无法静默写回任意本地路径；请使用「另存为」保存到工作区。刷新后应用会打开工作区文件，本地临时导入/新建的草稿不会自动重新出现。
-6. **照片保存在浏览器本地**。若工作区存在 `public/reference/profile.png` 则作为默认照片；公开仓库不包含该文件。上传照片会压缩为最长边 900px 的 JPEG，并写入 `localStorage` 样式配置，不会写入工作区文件。清除站点数据/换浏览器后需重新上传。照片可以自由拖动，位置可能覆盖正文，请自行调整。
-7. **原始 HTML 不渲染**。这是安全取舍；需要强调的内容使用 Markdown 粗体、链接或行内代码。
-8. **PDF 页面尺寸**。Chrome/Skia 输出的 A4 宽度约为 595.0 pt（标准 A4 为 595.28 pt），高度 841.9 pt；在阅读器中仍按 A4 处理，不影响排版与打印。
-9. **预览不自动跟随编辑位置**。内容始终实时更新，但预览滚动位置保持不变；编辑当前视口之外的页时，需要手动滚动到对应页面。
-10. **调试产物**。`docs/generated-resume.pdf` 是验证时生成的实际 PDF 示例；正式投递前请重新导出。
-11. **导出密码只保护 PDF 生成，不保护页面/API 的查看权限**。要达到“只让自己访问”，请启用 `APP_ACCESS_PASSWORD`，或在反向代理/VPN 层增加访问控制。
-12. **必须使用 HTTPS**。导出密码和 Basic Auth 凭据在 HTTP 下会明文传输；会话 Cookie 在 HTTPS 下才会带 `Secure` 标记。
-13. **会话有效期 2 小时**。服务端重启后，如果未固定 `EXPORT_SESSION_SECRET`，已有导出会话会失效，需要重新输入密码。
+1. **不提供 PDF 导出**。当前版本只做 Markdown 编辑和 A4 预览。
+2. **不提供注册**。新增用户需要修改 `.env` 的 `SEED_USERS` 并重启，或直接写数据库。
+3. **修改 `SEED_USERS` 不会更新已有用户密码**，避免部署时误重置。
+4. **样式和照片按浏览器保存，不按用户隔离**；Markdown 按用户保存在 MySQL。
+5. **未保存的编辑不会持久化**；刷新后回到最后一次保存的内容。
+6. **必须配置 MySQL**，没有 SQLite/内存数据库回退。
+7. **登录密码强度由部署者决定**；建议使用长随机密码，并确保 HTTPS。
+8. **会话有效期 7 天**；固定 `APP_SESSION_SECRET` 才能让会话跨重启保留。
+9. **字体依赖本机/客户端**；未安装所选字体时会回退。
+10. **照片是服务器上的共用默认照片**；不同用户上传的照片保存在各自浏览器 `localStorage`。
 
 ## 故障排查
 
-**导出时提示找不到 Chrome/Edge**
+**启动时报数据库连接失败**
 
-安装 Chrome 或 Edge，或指定路径：
+确认 MySQL 已启动、数据库存在、`MYSQL_*` 正确，应用账号有该库权限。远程 MySQL 还需防火墙允许应用服务器访问。
 
-```powershell
-$env:CHROME_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
-npm run dev
-```
+**启动后没有可登录用户**
 
-**端口被占用**
+检查 `.env` 中 `SEED_USERS` 格式是否为 `用户名:密码`，然后重启服务。首次启动日志会列出已创建/可登录用户名（不打印密码）。
 
-Vite 固定使用 5173；如被占用，修改 `vite.config.ts` 的 `server.port` 或关闭占用进程。生产 API 可通过 `PORT` 改端口。
+**登录后提示 401**
 
-**PDF 导出失败**
+检查浏览器是否允许 Cookie、是否通过 HTTPS 访问、反向代理是否传递 Cookie；`TRUST_PROXY=1` 只应在可信代理后设置。
 
-查看启动服务的终端输出。首次启动 Chrome 需要 1–3 秒；如果浏览器进程崩溃，下一次导出会自动重启。确认参考 PDF 未被其他程序占用（工具本身只读它）。
+**修改了密码但登录不变**
 
-**中文显示为方框**
+`SEED_USERS` 只创建不存在的用户；需要直接更新数据库中的密码哈希，或删除用户后重新初始化。
 
-所选字体未安装或字体回退失败。安装 MiSans/微软雅黑，或在样式面板切换到「系统无衬线」/「微软雅黑」。
+**保存提示登录过期**
 
-**保存失败：文件已存在**
-
-「另存为」默认不覆盖已有文件。确认后会显示「覆盖并保存」；「保存」按钮写回当前工作区文件时不需要确认。
-
-**刷新后没有恢复草稿**
-
-草稿按文件保存在当前浏览器的 `localStorage`。清理浏览器站点数据、使用无痕窗口或更换浏览器会丢失草稿；工作区文件本身不受影响。
-# resume-studio
+会话已超过 7 天或服务端更换了 `APP_SESSION_SECRET`，重新登录即可。

@@ -1,14 +1,7 @@
 import { DEFAULT_STYLE, normalizeStyle, type StyleConfig } from "./resume/style";
 
 const STYLE_KEY = "resume-studio:style:v1";
-const DRAFT_PREFIX = "resume-studio:draft:v1:";
 const SPLIT_KEY = "resume-studio:split:v1";
-
-export interface Draft {
-  content: string;
-  savedContent: string;
-  updatedAt: number;
-}
 
 function safeGet(key: string): string | null {
   try {
@@ -26,14 +19,6 @@ function safeSet(key: string, value: string): void {
   }
 }
 
-function safeRemove(key: string): void {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}
-
 export function loadStyle(): StyleConfig {
   const raw = safeGet(STYLE_KEY);
   if (!raw) return DEFAULT_STYLE;
@@ -46,32 +31,6 @@ export function loadStyle(): StyleConfig {
 
 export function saveStyle(style: StyleConfig): void {
   safeSet(STYLE_KEY, JSON.stringify(style));
-}
-
-export function loadDraft(fileId: string): Draft | null {
-  const raw = safeGet(DRAFT_PREFIX + fileId);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Partial<Draft>;
-    if (typeof parsed.content !== "string") return null;
-    return {
-      content: parsed.content,
-      savedContent:
-        typeof parsed.savedContent === "string" ? parsed.savedContent : "",
-      updatedAt:
-        typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function saveDraft(fileId: string, draft: Draft): void {
-  safeSet(DRAFT_PREFIX + fileId, JSON.stringify(draft));
-}
-
-export function removeDraft(fileId: string): void {
-  safeRemove(DRAFT_PREFIX + fileId);
 }
 
 export function loadSplit(): number {

@@ -1,10 +1,3 @@
-import type {
-  BootstrapPayload,
-  ExportPayload,
-  FileInfo,
-  SaveResult,
-} from "./types";
-
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -15,6 +8,23 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+export interface User {
+  id: number;
+  username: string;
+  displayName: string;
+}
+
+export interface AuthState {
+  authenticated: boolean;
+  user: User | null;
+}
+
+export interface ResumeResponse {
+  content: string;
+  updatedAtMs: number;
+  photoAvailable: boolean;
 }
 
 async function readError(response: Response): Promise<ApiError> {
@@ -34,67 +44,59 @@ async function readError(response: Response): Promise<ApiError> {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
   if (!response.ok) throw await readError(response);
   return (await response.json()) as T;
 }
 
-export function getBootstrap(): Promise<BootstrapPayload> {
-  return getJson<BootstrapPayload>("/api/bootstrap");
-}
-
-export function listFiles(): Promise<{ files: FileInfo[] }> {
-  return getJson<{ files: FileInfo[] }>("/api/files");
-}
-
-export function readWorkspaceFile(name: string): Promise<{ file: FileInfo; content: string }> {
-  return getJson<{ file: FileInfo; content: string }>(
-    `/api/file?name=${encodeURIComponent(name)}`,
-  );
-}
-
-export async function saveWorkspaceFile(payload: {
-  name: string;
-  content: string;
-  overwrite: boolean;
-}): Promise<SaveResult> {
-  const response = await fetch("/api/file", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+async function sendJson<T>(
+  url: string,
+  method: "POST" | "PUT",
+  body: unknown,
+): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw await readError(response);
-  return (await response.json()) as SaveResult;
+  return (await response.json()) as T;
 }
 
-export async function exportPdf(payload: ExportPayload): Promise<Blob> {
-  const response = await fetch("/api/export-pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+export function getMe(): Promise<AuthState> {
+  return getJson<AuthState>("/api/auth/me");
+}
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<User> {
+  const result = await sendJson<{ user: User }>("/api/auth/login", "POST", {
+    username,
+    password,
   });
-  if (!response.ok) throw await readError(response);
-  const blob = await response.blob();
-  if (!blob.size) throw new Error("PDF 生成结果为空。");
-  return blob;
+  return result.user;
 }
 
-export interface ExportAuthStatus {
-  authorized: boolean;
-  configured: boolean;
+export async function logout(): Promise<void> {
+  await sendJson<{ ok: boolean }>("/api/auth/logout", "POST", {});
 }
 
-export function getExportAuthStatus(): Promise<ExportAuthStatus> {
-  return getJson<ExportAuthStatus>("/api/export-auth");
+export function getResume(): Promise<ResumeResponse> {
+  return getJson<ResumeResponse>("/api/resume");
 }
 
-export async function unlockExport(password: string): Promise<void> {
-  const response = await fetch("/api/export-auth", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-  });
-  if (!response.ok) throw await readError(response);
+export async function saveResume(
+  content: string,
+): Promise<{ updatedAtMs: number }> {
+  return sendJson<{ updatedAtMs: number }>("/api/resume", "PUT", { content });
 }
 
 export function photoUrl(): string {

@@ -547,7 +547,7 @@ export function StylePanel({
         </section>
 
         <p className="style-note">
-          默认字体与间距来自当前 PDF 参考稿。若所选字体未安装，将自动回退到系统
+          默认字体与间距来自参考稿。若所选字体未安装，将自动回退到系统
           无衬线字体。
         </p>
       </div>

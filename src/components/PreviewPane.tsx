@@ -199,7 +199,7 @@ export function PreviewPane({
 
       {overflow ? (
         <div className="preview-banner is-error" role="alert">
-          存在超过一页高度的内容块，导出已暂停。请拆分该段内容，或适当调小字号、行高。
+          存在超过一页高度的内容块，分页已暂停。请拆分该段内容，或适当调小字号、行高。
         </div>
       ) : ready && pages.length > 1 ? (
         <div className="preview-banner is-info">

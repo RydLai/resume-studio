@@ -1,56 +1,24 @@
-import type { CurrentFile } from "../types";
+import type { User } from "../api";
 
 interface ToolbarProps {
-  file: CurrentFile | null;
+  user: User;
   dirty: boolean;
-  busy: "save" | "export" | null;
+  busy: "save" | null;
   styleOpen: boolean;
-  canExport: boolean;
-  onOpen: () => void;
   onSave: () => void;
-  onSaveAs: () => void;
   onToggleStyle: () => void;
-  onExport: () => void;
-}
-
-function DownloadIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M8 2v7m0 0 2.6-2.6M8 9 5.4 6.4M3 10.5v2.2c0 .7.6 1.3 1.3 1.3h7.4c.7 0 1.3-.6 1.3-1.3v-2.2"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  onLogout: () => void;
 }
 
 export function Toolbar({
-  file,
+  user,
   dirty,
   busy,
   styleOpen,
-  canExport,
-  onOpen,
   onSave,
-  onSaveAs,
   onToggleStyle,
-  onExport,
+  onLogout,
 }: ToolbarProps) {
-  const sourceLabel =
-    file?.source === "local"
-      ? "本地"
-      : file?.source === "new"
-        ? "新建"
-        : "工作区";
   return (
     <header className="toolbar">
       <div className="toolbar-left">
@@ -65,39 +33,30 @@ export function Toolbar({
 
         <div
           className="file-chip"
-          title={
-            file
-              ? `${file.name}（${sourceLabel}${dirty ? "，有未保存修改" : ""}）`
-              : "未打开文件"
-          }
+          title={`当前用户：${user.username}`}
         >
-          <span className="file-chip-label">{sourceLabel}</span>
-          <span className="file-name">{file?.name ?? "未打开文件"}</span>
+          <span className="file-chip-label">当前用户</span>
+          <span className="file-name">{user.displayName}</span>
           {dirty ? (
-            <span className="dirty-dot" aria-label="有未保存修改" title="有未保存修改" />
+            <span
+              className="dirty-dot"
+              aria-label="有未保存修改"
+              title="有未保存修改"
+            />
           ) : null}
         </div>
       </div>
 
       <div className="toolbar-right">
-        <button type="button" className="button ghost" onClick={onOpen}>
-          打开
-        </button>
         <button
           type="button"
-          className="button ghost"
+          className="button primary"
           onClick={onSave}
           disabled={busy === "save"}
-          title="保存到工作区文件（Ctrl+S）"
+          title="保存到 MySQL（Ctrl+S）"
         >
           {busy === "save" ? "保存中…" : "保存"}
         </button>
-        <button type="button" className="button ghost" onClick={onSaveAs}>
-          另存为
-        </button>
-
-        <span className="toolbar-divider" aria-hidden="true" />
-
         <button
           type="button"
           className={`button ghost${styleOpen ? " is-active" : ""}`}
@@ -106,25 +65,16 @@ export function Toolbar({
         >
           样式
         </button>
+
+        <span className="toolbar-divider" aria-hidden="true" />
+
         <button
           type="button"
-          className="button primary"
-          onClick={onExport}
-          disabled={busy === "export" || !canExport}
-          title={
-            canExport
-              ? "导出 A4 PDF（resume.pdf，需要导出密码）"
-              : "预览排版完成且无溢出后才能导出"
-          }
+          className="button ghost"
+          onClick={onLogout}
+          title="退出当前账号"
         >
-          {busy === "export" ? (
-            "生成中…"
-          ) : (
-            <>
-              <DownloadIcon />
-              导出 PDF
-            </>
-          )}
+          退出
         </button>
       </div>
     </header>
