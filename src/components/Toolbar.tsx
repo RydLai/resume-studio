@@ -113,7 +113,7 @@ export function Toolbar({
           disabled={busy === "export" || !canExport}
           title={
             canExport
-              ? "导出 A4 PDF（resume.pdf）"
+              ? "导出 A4 PDF（resume.pdf，需要导出密码）"
               : "预览排版完成且无溢出后才能导出"
           }
         >

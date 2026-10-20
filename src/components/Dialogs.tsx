@@ -218,6 +218,86 @@ export function OpenDialog({
   );
 }
 
+interface ExportPasswordDialogProps {
+  error: string | null;
+  loading: boolean;
+  onSubmit: (password: string) => void;
+  onClose: () => void;
+}
+
+export function ExportPasswordDialog({
+  error,
+  loading,
+  onSubmit,
+  onClose,
+}: ExportPasswordDialogProps) {
+  const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const submit = () => {
+    if (loading) return;
+    if (!password.trim()) {
+      setLocalError("请输入导出密码。");
+      return;
+    }
+    setLocalError(null);
+    onSubmit(password);
+  };
+
+  return (
+    <Modal
+      title="导出密码"
+      subtitle="输入正确密码后才会生成并下载 PDF。"
+      onClose={onClose}
+      width={420}
+      footer={
+        <>
+          <button type="button" className="button ghost" onClick={onClose}>
+            取消
+          </button>
+          <button
+            type="button"
+            className="button primary"
+            onClick={submit}
+            disabled={loading}
+          >
+            {loading ? "验证中…" : "验证并导出"}
+          </button>
+        </>
+      }
+    >
+      <label className="field">
+        <span className="field-label">密码</span>
+        <input
+          type="password"
+          className="text-input"
+          value={password}
+          autoFocus
+          autoComplete="current-password"
+          spellCheck={false}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setLocalError(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            }
+          }}
+        />
+      </label>
+      {localError || error ? (
+        <p className="form-error">{localError ?? error}</p>
+      ) : null}
+      <p className="form-hint">
+        密码由服务器校验，不会保存在前端。验证成功后，当前浏览器会话可在 2
+        小时内继续导出。
+      </p>
+    </Modal>
+  );
+}
+
 interface SaveAsDialogProps {
   defaultName: string;
   saving: boolean;
@@ -230,8 +310,7 @@ export function SaveAsDialog({
   saving,
   onSave,
   onClose,
-}: SaveAsDialogProps) {
-  const [name, setName] = useState(defaultName);
+}: SaveAsDialogProps) {  const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
 

@@ -79,6 +79,24 @@ export async function exportPdf(payload: ExportPayload): Promise<Blob> {
   return blob;
 }
 
+export interface ExportAuthStatus {
+  authorized: boolean;
+  configured: boolean;
+}
+
+export function getExportAuthStatus(): Promise<ExportAuthStatus> {
+  return getJson<ExportAuthStatus>("/api/export-auth");
+}
+
+export async function unlockExport(password: string): Promise<void> {
+  const response = await fetch("/api/export-auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (!response.ok) throw await readError(response);
+}
+
 export function photoUrl(): string {
   return "/api/photo";
 }

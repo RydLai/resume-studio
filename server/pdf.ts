@@ -166,11 +166,16 @@ async function getBrowser(): Promise<Browser> {
     );
   }
 
+  const launchArgs = ["--font-render-hinting=none", "--disable-lcd-text"];
+  if (process.env.CHROME_NO_SANDBOX === "1") {
+    launchArgs.push("--no-sandbox");
+  }
+
   browserPromise = chromium
     .launch({
       headless: true,
       executablePath,
-      args: ["--font-render-hinting=none", "--disable-lcd-text"],
+      args: launchArgs,
     })
     .catch((error) => {
       browserPromise = null;

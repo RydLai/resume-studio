@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
+import "dotenv/config";
 import { chromium } from "playwright-core";
 
 const executablePath =
@@ -11,6 +12,7 @@ const tempMd = "__smoke-test.md";
 const tempPdf = "smoke-style.pdf";
 const APP_URL = process.env.APP_URL || "http://localhost:5173";
 const API_URL = process.env.API_URL || "http://127.0.0.1:3001";
+const exportPassword = (process.env.PDF_EXPORT_PASSWORD ?? "").trim();
 
 // 4×4 红色 PNG，用于验证上传、压缩与 PDF data URI 嵌入。
 const TEST_PHOTO_PNG =
@@ -109,7 +111,13 @@ const consoleErrors = [];
 const pageErrors = [];
 const dialogs = [];
 page.on("console", (message) => {
-  if (message.type() === "error") consoleErrors.push(message.text());
+  if (
+    message.type() === "error" &&
+    !message.text().includes("400 (Bad Request)") &&
+    !message.text().includes("401 (Unauthorized)")
+  ) {
+    consoleErrors.push(message.text());
+  }
 });
 page.on("pageerror", (error) => pageErrors.push(error.message));
 page.on("dialog", async (dialog) => {
@@ -168,6 +176,10 @@ try {
   await noteLine.click();
   await page.keyboard.press("Home");
   await page.keyboard.press("Shift+End");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".cm-selectionBackground").length > 0,
+    { timeout: 3000 },
+  );
   const selectionFacts = await page.evaluate(() => {
     const selection = document.querySelector(".cm-selectionBackground");
     const activeLine = document.querySelector(".cm-activeLine");
@@ -358,6 +370,20 @@ try {
   await page.waitForSelector(".style-panel", { state: "detached" });
 
   console.log("6. 在自定义样式下导出 PDF");
+  if (!exportPassword) {
+    throw new Error(
+      "未设置 PDF_EXPORT_PASSWORD。请先把 .env.example 复制为 .env 并填写导出密码。",
+    );
+  }
+  const authStatus = await page.evaluate(async (password) => {
+    const response = await fetch("/api/export-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    return response.status;
+  }, exportPassword);
+  assert.equal(authStatus, 200, "导出密码验证失败");
   const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
   await page.getByRole("button", { name: /导出 PDF/ }).click();
   const download = await downloadPromise;
@@ -539,8 +565,17 @@ try {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pagesHtml: "", style: {}, title: "x" }),
     }),
-    400,
+    401,
   );
+  const authenticatedEmptyExport = await page.evaluate(async () => {
+    const response = await fetch("/api/export-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pagesHtml: "", style: {}, title: "x" }),
+    });
+    return response.status;
+  });
+  assert.equal(authenticatedEmptyExport, 400);
 
   console.log("10. 检查页面错误、XSS 与文件保护");
   assert.deepEqual(dialogs, []);

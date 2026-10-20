@@ -5,6 +5,9 @@ dist-server
 .DS_Store
 *.log
 *.tmp
+.env
+.env.*
+!.env.example
 __smoke-test.md
 __smoke-source.md
 smoke-style.pdf

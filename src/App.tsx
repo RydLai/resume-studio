@@ -6,14 +6,21 @@ import {
   useState,
 } from "react";
 import {
+  ApiError,
   exportPdf,
   getBootstrap,
+  getExportAuthStatus,
   listFiles,
   photoUrl,
   readWorkspaceFile,
   saveWorkspaceFile,
+  unlockExport,
 } from "./api";
-import { OpenDialog, SaveAsDialog } from "./components/Dialogs";
+import {
+  ExportPasswordDialog,
+  OpenDialog,
+  SaveAsDialog,
+} from "./components/Dialogs";
 import { MarkdownEditor } from "./components/MarkdownEditor";
 import { PreviewPane } from "./components/PreviewPane";
 import { SplitPane } from "./components/SplitPane";
@@ -77,6 +84,9 @@ export default function App() {
   const [style, setStyle] = useState<StyleConfig>(() => loadStyle());
   const [styleOpen, setStyleOpen] = useState(false);
   const [modal, setModal] = useState<ModalKind>(null);
+  const [exportAuthOpen, setExportAuthOpen] = useState(false);
+  const [exportAuthError, setExportAuthError] = useState<string | null>(null);
+  const [unlockingExport, setUnlockingExport] = useState(false);
   const [busy, setBusy] = useState<BusyKind>(null);
   const [layout, setLayout] = useState<ResumeLayout>({
     pageCount: 0,
@@ -385,20 +395,36 @@ export default function App() {
       pushToast("存在超过单页高度的内容，已暂停导出。", "error");
       return;
     }
-    const container = pagesRef.current;
-    const pageElements = container
-      ? Array.from(container.querySelectorAll(".r-page"))
-      : [];
-    if (pageElements.length === 0) {
-      pushToast("没有可导出的页面。", "error");
-      return;
-    }
-    const pagesHtml = pageElements
-      .map((element) => element.outerHTML)
-      .join("");
+
     actionLockRef.current = true;
     setBusy("export");
     try {
+      const auth = await getExportAuthStatus();
+      if (!auth.configured) {
+        pushToast(
+          "服务器未配置 PDF 导出密码，导出功能未启用。",
+          "error",
+        );
+        return;
+      }
+      if (!auth.authorized) {
+        setExportAuthError(null);
+        setExportAuthOpen(true);
+        return;
+      }
+
+      const container = pagesRef.current;
+      const pageElements = container
+        ? Array.from(container.querySelectorAll(".r-page"))
+        : [];
+      if (pageElements.length === 0) {
+        pushToast("没有可导出的页面。", "error");
+        return;
+      }
+      const pagesHtml = pageElements
+        .map((element) => element.outerHTML)
+        .join("");
+
       const blob = await exportPdf({
         pagesHtml,
         style,
@@ -417,6 +443,11 @@ export default function App() {
         "success",
       );
     } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setExportAuthError(null);
+        setExportAuthOpen(true);
+        return;
+      }
       pushToast(
         error instanceof Error ? error.message : "PDF 导出失败，请重试。",
         "error",
@@ -426,6 +457,26 @@ export default function App() {
       setBusy(null);
     }
   }, [busy, layout, parsed.title, pushToast, style]);
+
+  const handleUnlockExport = useCallback(
+    async (password: string) => {
+      if (unlockingExport) return;
+      setUnlockingExport(true);
+      setExportAuthError(null);
+      try {
+        await unlockExport(password);
+        setExportAuthOpen(false);
+        await handleExport();
+      } catch (error) {
+        setExportAuthError(
+          error instanceof Error ? error.message : "密码验证失败，请重试。",
+        );
+      } finally {
+        setUnlockingExport(false);
+      }
+    },
+    [handleExport, unlockingExport],
+  );
 
   const handleLayout = useCallback((next: ResumeLayout) => {
     setLayout((previous) =>
@@ -445,6 +496,7 @@ export default function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       const mod = event.ctrlKey || event.metaKey;
       if (event.key === "Escape") {
+        if (exportAuthOpen) return;
         if (modal) {
           setModal(null);
           return;
@@ -454,7 +506,7 @@ export default function App() {
           return;
         }
       }
-      if (!mod || modal) return;
+      if (!mod || modal || exportAuthOpen) return;
       const key = event.key.toLowerCase();
       if (key === "s") {
         event.preventDefault();
@@ -467,7 +519,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleOpenDialog, handleSave, modal, styleOpen]);
+  }, [exportAuthOpen, handleOpenDialog, handleSave, modal, styleOpen]);
 
   const statusText = (() => {
     if (busy === "save") return "正在保存到磁盘…";
@@ -590,6 +642,18 @@ export default function App() {
           saving={busy === "save"}
           onSave={handleSaveAs}
           onClose={() => setModal(null)}
+        />
+      ) : null}
+
+      {exportAuthOpen ? (
+        <ExportPasswordDialog
+          error={exportAuthError}
+          loading={unlockingExport}
+          onSubmit={(password) => void handleUnlockExport(password)}
+          onClose={() => {
+            setExportAuthOpen(false);
+            setExportAuthError(null);
+          }}
         />
       ) : null}
 

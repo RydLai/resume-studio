@@ -2,7 +2,7 @@
 
 一个完全本地运行的 Markdown 简历编辑器与 A4 PDF 生成器。以工作区中的 Markdown 为唯一内容源，以现有 PDF 简历为排版参考，提供实时 A4 预览、样式调整、文件保存和一键导出可搜索的 PDF。
 
-除当前简历外，也可以从通用空白模板新建简历；提供经典、现代、极简三套可切换模板。证件照支持本地上传、在 A4 预览中直接拖动、调整尺寸与形状，并随样式独立保存。
+除当前简历外，也可以从通用空白模板新建简历；提供经典、现代、极简三套可切换模板。证件照支持本地上传、在 A4 预览中直接拖动、调整尺寸与形状，并随样式独立保存。PDF 导出可设置服务端密码，并可选用整站 Basic Auth 限制访问。
 
 ![Resume Studio 界面](docs/ui.png)
 
@@ -15,6 +15,7 @@
 - [三种简历模板](#三种简历模板)
 - [样式配置](#样式配置)
 - [PDF 导出方案](#pdf-导出方案)
+- [部署与访问保护](#部署与访问保护)
 - [排版还原依据](#排版还原依据)
 - [文件安全](#文件安全)
 - [项目结构](#项目结构)
@@ -35,6 +36,24 @@
 ```bash
 npm install
 ```
+
+首次使用请创建本地环境配置：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+```bash
+# macOS / Linux
+cp .env.example .env
+```
+
+编辑 `.env`，至少设置：
+
+- `PDF_EXPORT_PASSWORD`：导出 PDF 时要求的密码，只在服务端读取。
+- `EXPORT_SESSION_SECRET`：用于签名导出会话 Cookie 的随机字符串。
+
+`.env` 已被 `.gitignore` 排除，不会提交到仓库。若未设置 `PDF_EXPORT_PASSWORD`，导出功能会自动关闭，界面会提示服务器未配置密码。
 
 开发模式（Vite + Express）：
 
@@ -63,7 +82,13 @@ npm start
 | --- | --- | --- |
 | `PORT` | `3001` | Express 端口，仅生产模式影响页面地址 |
 | `HOST` | `127.0.0.1` | 监听地址，默认只允许本机访问 |
-| `CHROME_PATH` | 自动探测 | 手动指定 Chrome/Edge 可执行文件 |
+| `PDF_EXPORT_PASSWORD` | 空 | PDF 导出密码；为空时导出关闭。只在服务端读取 |
+| `EXPORT_SESSION_SECRET` | 启动时随机生成 | 导出会话 Cookie 的签名密钥；设置固定值可在重启后保留会话 |
+| `APP_ACCESS_USER` | `resume` | 可选整站 Basic Auth 用户名 |
+| `APP_ACCESS_PASSWORD` | 空 | 可选整站访问密码；设置后整个站点和 API 都需要 Basic Auth |
+| `CHROME_PATH` | 自动探测 | 手动指定 Chrome/Edge/Chromium 可执行文件 |
+| `CHROME_NO_SANDBOX` | 空 | 设为 `1` 时为 Chromium 添加 `--no-sandbox`（root/容器环境） |
+| `TRUST_PROXY` | 空 | 位于可信反向代理后时设为 `1`，用于正确识别 HTTPS 与客户端 IP |
 
 示例：
 
@@ -117,6 +142,9 @@ npm start
 ### PDF
 
 - 默认文件名 `resume.pdf`，A4 页面。
+- 导出受服务端密码保护：密码只从环境变量读取，前端和后端响应都不包含密码。
+- 首次导出时弹出密码框；验证成功后服务端下发 2 小时有效的 HttpOnly 会话 Cookie，同一会话内再次导出无需重复输入。
+- 密码错误会被拒绝；同一 IP 10 分钟内最多尝试 5 次，超过后临时锁定。
 - 中文字体嵌入；文字可选择、复制、搜索，不是整页图片。
 - 保留超链接（`http/https/mailto/tel`）。
 - 打印背景色、主题色、标签底色。
@@ -130,7 +158,7 @@ npm start
 3. 在「样式」面板选择经典/现代/极简模板，并调整字号、行高、边距、字体、主题色和分隔线。
 4. 在「照片」区域上传图片，然后直接在右侧预览中拖动照片，或用 X/Y/宽高精确调整。
 5. 点击「保存」写回工作区文件；「另存为」创建新文件；浏览器草稿会自动保存。
-6. 点击「导出 PDF」，浏览器下载 `resume.pdf`。
+6. 点击「导出 PDF」，输入服务端配置的导出密码；验证通过后浏览器下载 `resume.pdf`。
 7. 「打开」可切换工作区文件、导入电脑上的 Markdown、新建空白简历，或在新标签页查看参考 PDF。
 
 > 从电脑导入或新建的文件只存在于当前页面状态中。要持久化，请使用「另存为」写入工作区。工作区文件的未保存草稿会在刷新后恢复。
@@ -204,16 +232,106 @@ npm start
 
 ## PDF 导出方案
 
-1. 前端完成分页，生成多个固定 A4 尺寸的 `.r-page` 元素。
-2. 导出时只读取这些 `.r-page` 的 `outerHTML`，连同当前样式配置发送给本地 API。
-3. 服务端用 `sanitize-html` 白名单清洗 HTML：默认照片替换为内联 data URI；自定义照片本身已是压缩后的 JPEG data URI，只允许 `data:image/*` 形式进入 `<img>`。
-4. 服务端注入共享的 `src/resume/resume.css`、打印 CSS 和样式变量。
-5. `playwright-core` 启动本机 Chrome/Edge，设置 `@page { size: A4; margin: 0 }`，以 `printBackground: true`、`preferCSSPageSize: true` 打印。
-6. 生成的 PDF 直接以二进制返回，浏览器下载为 `resume.pdf`。
+1. 点击导出时先校验密码会话；未验证则弹出密码框，服务端 `/api/export-auth` 验证密码并下发 HttpOnly Cookie。
+2. 前端完成分页，生成多个固定 A4 尺寸的 `.r-page` 元素。
+3. 导出时只读取这些 `.r-page` 的 `outerHTML`，连同当前样式配置发送给 API；`/api/export-pdf` 再次校验导出会话。
+4. 服务端用 `sanitize-html` 白名单清洗 HTML：默认照片替换为内联 data URI；自定义照片本身已是压缩后的 JPEG data URI，只允许 `data:image/*` 形式进入 `<img>`。
+5. 服务端注入共享的 `src/resume/resume.css`、打印 CSS 和样式变量。
+6. `playwright-core` 启动本机 Chrome/Edge，设置 `@page { size: A4; margin: 0 }`，以 `printBackground: true`、`preferCSSPageSize: true` 打印。
+7. 生成的 PDF 直接以二进制返回，浏览器下载为 `resume.pdf`。
 
 因为预览和 PDF 共用同一套 DOM 结构与 CSS，只存在打印引擎的极小度量差异；PDF 仍是矢量文字，可搜索、复制和选中。
 
 打印页面会阻止所有外部 HTTP(S) 请求，只允许内联字体/图片数据，避免把简历内容发到网络。
+
+## 部署与访问保护
+
+### 导出密码
+
+导出密码只在服务端校验，流程如下：
+
+1. 点击「导出 PDF」时，前端先请求 `/api/export-auth` 检查当前会话。
+2. 未验证时弹出密码框，密码通过 HTTPS 发送到 `/api/export-auth`。
+3. 校验成功后，服务端下发 2 小时有效的 HttpOnly、SameSite=Strict Cookie；`/api/export-pdf` 检查这个 Cookie，验证失败返回 `401`。
+4. 同一 IP 10 分钟内最多尝试 5 次；连续错误后临时锁定。
+5. 密码不会出现在前端 bundle、API 响应或仓库中；`.env` 已被 `.gitignore` 排除。
+
+`.env` 至少设置：
+
+```dotenv
+PDF_EXPORT_PASSWORD=替换为你的导出密码
+EXPORT_SESSION_SECRET=替换为随机长字符串
+```
+
+生成随机签名密钥：
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+如果 `EXPORT_SESSION_SECRET` 不设置，服务启动时会生成临时密钥；重启后已有导出会话会失效，需要重新输入密码。
+
+### 服务器部署
+
+```bash
+npm ci
+npm run build
+PDF_EXPORT_PASSWORD='替换为你的导出密码' \
+EXPORT_SESSION_SECRET='替换为随机长字符串' \
+HOST=127.0.0.1 PORT=3001 \
+npm start
+```
+
+也可以把变量写入服务器上的 `.env`，启动时会自动加载。建议限制文件权限：
+
+```bash
+chmod 600 .env
+```
+
+服务器需要安装 Chrome/Chromium（PDF 打印依赖）和中文字体。Debian/Ubuntu 示例：
+
+```bash
+sudo apt update
+sudo apt install -y chromium fonts-noto-cjk
+export CHROME_PATH=/usr/bin/chromium
+```
+
+若以 root 运行 Chromium，通常还需要：
+
+```dotenv
+CHROME_NO_SANDBOX=1
+```
+
+生产环境建议让 Express 只监听 `127.0.0.1`，由 Nginx/Caddy 提供 HTTPS 并反向代理到 `3001`。Caddy 示例：
+
+```caddyfile
+resume.example.com {
+  reverse_proxy 127.0.0.1:3001
+}
+```
+
+> 必须使用 HTTPS。否则导出密码和站点访问密码会以明文经过网络。
+
+反向代理后建议同时设置：
+
+```dotenv
+TRUST_PROXY=1
+```
+
+这样 Express 才能正确识别 HTTPS 与真实客户端 IP（密码尝试限流依赖 IP）。
+
+### 只让自己访问
+
+只给 PDF 导出加密码，**不会保护简历内容本身**：任何人仍可打开页面、读取 `/api/bootstrap` 和编辑内容。要真正做到“只让自己使用”，建议再加一层整站访问密码：
+
+```dotenv
+APP_ACCESS_USER=resume
+APP_ACCESS_PASSWORD=替换为你的站点访问密码
+```
+
+设置后整个站点和 API 都会启用 HTTP Basic Auth（`/api/health` 除外），浏览器会先要求输入站点用户名和密码，导出 PDF 时再输入一次导出密码。也可以不设置这项，改用反向代理 Basic Auth、VPN 或 Tailscale 限制访问。
+
+导出密码和站点访问密码可以使用同一个密码，也可以分开；推荐分开，避免一处泄露影响全部。密码通过环境变量或 `.env` 配置，不要提交到仓库。
 
 ## 排版还原依据
 
@@ -239,12 +357,15 @@ npm start
 - 服务默认只监听 `127.0.0.1`。
 - PDF HTML 经过服务端白名单清洗，原始脚本、事件属性、危险 URL 均被移除；自定义照片只允许 `data:image/png|jpeg|webp` 数据进入 `<img>`。
 - 上传的照片只保存在浏览器 `localStorage` 的样式配置里，不会写入工作区文件；导出时随页面发送给本地 PDF 服务。
-- 不使用数据库、登录、云服务或任何 AI API。
+- PDF 导出需要服务端密码；密码只存在 `.env`/环境变量中，前端 bundle 不含密码。
+- 可选整站 Basic Auth 由服务端校验；启用后站点和 API 均需认证。
+- 不使用数据库、第三方登录、云服务或 AI API；唯一的会话状态是签名后的导出 Cookie。
 
 ## 项目结构
 
 ```text
 resume-generator/
+├── .env.example                  # 环境变量示例（复制为 .env，不提交 .env）
 ├── resume.md                     # 可选：你的本地简历（不纳入公开仓库）
 ├── reference.pdf                 # 可选：本地样式参考 PDF（不纳入公开仓库）
 ├── docs/
@@ -256,9 +377,11 @@ resume-generator/
 ├── public/
 │   └── favicon.svg
 ├── scripts/
-│   └── smoke-test.mjs             # Playwright 验收脚本（自建通用测试数据）
+│   ├── smoke-test.mjs             # Playwright 验收脚本（自建通用测试数据）
+│   └── export-auth-test.mjs       # 导出密码/会话验证脚本
 ├── server/
-│   ├── index.ts                   # Express 路由与静态服务
+│   ├── index.ts                   # Express 路由、静态服务、可选整站 Basic Auth
+│   ├── exportAuth.ts              # 导出密码、会话 Cookie、尝试限流
 │   ├── files.ts                   # 扫描、读取、原子写入
 │   ├── pdf.ts                     # 清洗 HTML、Chrome 打印 PDF
 │   └── errors.ts
@@ -303,13 +426,16 @@ npm run dev         # 启动 API 5173/3001 开发服务
 npm run start       # 启动生产服务（需先 build）
 ```
 
-浏览器验收脚本（需先启动 `npm run dev`）：
+浏览器验收脚本（需先把 `.env.example` 复制为 `.env` 并设置 `PDF_EXPORT_PASSWORD`，然后启动 `npm run dev`）：
 
 ```bash
 node scripts/smoke-test.mjs
+node scripts/export-auth-test.mjs
 ```
 
-脚本会自建通用测试数据 `__smoke-source.md`，并创建 `__smoke-test.md`；结束时删除这两个文件，同时保留 `smoke-style.pdf` 供人工检查。三个文件都在 `.gitignore` 中排除。
+`smoke-test.mjs` 使用环境变量中的导出密码完成鉴权，自建通用测试数据 `__smoke-source.md`，并创建 `__smoke-test.md`；结束时删除这两个文件，同时保留 `smoke-style.pdf` 供人工检查。三个文件都在 `.gitignore` 中排除。
+
+`export-auth-test.mjs` 专门验证密码弹窗、错误密码拒绝、正确密码导出、HttpOnly 会话 Cookie、同会话免输入和新会话重新验证。
 
 脚本覆盖：
 
@@ -321,7 +447,7 @@ node scripts/smoke-test.mjs
 6. 不保存直接刷新，校验草稿恢复。
 7. 修改字号、行高、标题、边距、模块间距、主题色、分隔线与照片显示开关，校验预览和持久化。
 8. 上传测试图片，校验自动压缩、缩略图、预览拖动、X/Y 更新和 localStorage 持久化。
-9. 在自定义样式下实际导出 PDF。
+9. 在自定义样式下验证导出密码并实际导出 PDF。
 10. 检查每页没有内部溢出。
 11. 恢复默认样式后，用短内容验证单页排版。
 12. 从电脑导入本地 Markdown。
@@ -338,6 +464,8 @@ node scripts/smoke-test.mjs
 - 三套模板均导出 1 页 PDF：[模板对比](docs/templates.png)。经典黑底标签、现代顶部色条/左侧强调、极简衬线姓名/细线标题均正常；无页面内部溢出。
 - 自定义照片：上传 800×1000 测试照片后自动压缩为 720×900 JPEG 嵌入 PDF；拖动后 X/Y 从 175.3/6.1 变为 130.2/55，刷新后照片、位置、尺寸、圆角形状均保持。
 - 自定义样式导出：1 页；4×4 测试照片以 data URI 嵌入 PDF；`mailto:` 与 `https://` 链接均生成 PDF 链接注释。
+- 导出鉴权：未验证请求返回 `401`；错误密码被拒绝；正确密码成功下载 PDF；会话 Cookie 为 HttpOnly + SameSite=Strict；同一会话再次导出免输入；新会话重新要求密码。
+- 可选整站 Basic Auth：未认证访问返回 `401` 与 `WWW-Authenticate`；正确凭据返回 `200`；`/api/health` 保持公开。
 - 新建空白简历：渲染为 1 页，包含教育背景/工作经历/项目经验/专业技能模板；点击保存正确进入「另存为 Markdown」。
 - 所有预览页面 `scrollHeight <= clientHeight + 1`，没有页面内部裁切。
 - 保存未编辑内容时保留原有 CRLF/LF 行尾；通用测试源文件在测试前后哈希不变。
@@ -355,6 +483,9 @@ node scripts/smoke-test.mjs
 8. **PDF 页面尺寸**。Chrome/Skia 输出的 A4 宽度约为 595.0 pt（标准 A4 为 595.28 pt），高度 841.9 pt；在阅读器中仍按 A4 处理，不影响排版与打印。
 9. **预览不自动跟随编辑位置**。内容始终实时更新，但预览滚动位置保持不变；编辑当前视口之外的页时，需要手动滚动到对应页面。
 10. **调试产物**。`docs/generated-resume.pdf` 是验证时生成的实际 PDF 示例；正式投递前请重新导出。
+11. **导出密码只保护 PDF 生成，不保护页面/API 的查看权限**。要达到“只让自己访问”，请启用 `APP_ACCESS_PASSWORD`，或在反向代理/VPN 层增加访问控制。
+12. **必须使用 HTTPS**。导出密码和 Basic Auth 凭据在 HTTP 下会明文传输；会话 Cookie 在 HTTPS 下才会带 `Secure` 标记。
+13. **会话有效期 2 小时**。服务端重启后，如果未固定 `EXPORT_SESSION_SECRET`，已有导出会话会失效，需要重新输入密码。
 
 ## 故障排查
 

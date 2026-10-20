@@ -1,9 +1,21 @@
+import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BootstrapPayload } from "../src/types.ts";
 import { HttpError } from "./errors.ts";
+import {
+  assertExportAttemptAllowed,
+  clearExportFailures,
+  exportPasswordConfigured,
+  exportSessionDurationMs,
+  hasExportSession,
+  recordExportFailure,
+  setExportSession,
+  verifyExportPassword,
+} from "./exportAuth.ts";
 import {
   PHOTO_PATH,
   PROJECT_ROOT,
@@ -21,8 +33,63 @@ import {
 const app = express();
 const port = Number(process.env.PORT ?? 3001);
 const host = process.env.HOST ?? "127.0.0.1";
+const appAccessUser = (process.env.APP_ACCESS_USER ?? "resume").trim() || "resume";
+const appAccessPassword = (process.env.APP_ACCESS_PASSWORD ?? "").trim();
+
+const authDigest = (value: string): Buffer =>
+  createHash("sha256").update(value).digest();
+
+const constantTimeEqual = (left: string, right: string): boolean =>
+  timingSafeEqual(authDigest(left), authDigest(right));
+
+const basicChallenge = (response: Response): void => {
+  response.setHeader(
+    "WWW-Authenticate",
+    'Basic realm="Resume Studio", charset="UTF-8"',
+  );
+  response.status(401).send("Authentication required");
+};
 
 app.disable("x-powered-by");
+app.set("trust proxy", process.env.TRUST_PROXY === "1" ? 1 : false);
+
+// 可选的整站访问保护。未设置 APP_ACCESS_PASSWORD 时保持原行为。
+if (appAccessPassword) {
+  app.use((request, response, next) => {
+    if (request.path === "/api/health") {
+      next();
+      return;
+    }
+    const header = request.headers.authorization ?? "";
+    if (!/^Basic\s+/i.test(header)) {
+      basicChallenge(response);
+      return;
+    }
+    let user = "";
+    let password = "";
+    try {
+      const decoded = Buffer.from(header.replace(/^Basic\s+/i, ""), "base64").toString(
+        "utf8",
+      );
+      const separator = decoded.indexOf(":");
+      if (separator >= 0) {
+        user = decoded.slice(0, separator);
+        password = decoded.slice(separator + 1);
+      }
+    } catch {
+      // 非法 Base64 按认证失败处理。
+    }
+    if (
+      !constantTimeEqual(user, appAccessUser) ||
+      !constantTimeEqual(password, appAccessPassword)
+    ) {
+      basicChallenge(response);
+      return;
+    }
+    next();
+  });
+}
+
 app.use(express.json({ limit: "10mb" }));
 app.use((_request, response, next) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
@@ -32,6 +99,43 @@ app.use((_request, response, next) => {
 
 app.get("/api/health", (_request, response) => {
   response.json({ ok: true, service: "resume-studio" });
+});
+
+app.get("/api/export-auth", (request, response) => {
+  response.setHeader("Cache-Control", "no-store");
+  response.json({
+    authorized: hasExportSession(request),
+    configured: exportPasswordConfigured(),
+  });
+});
+
+app.post("/api/export-auth", (request, response, next) => {
+  try {
+    if (!exportPasswordConfigured()) {
+      throw new HttpError(
+        503,
+        "EXPORT_PASSWORD_NOT_CONFIGURED",
+        "服务器未配置 PDF 导出密码。",
+      );
+    }
+    const ip = request.ip || request.socket.remoteAddress || "unknown";
+    assertExportAttemptAllowed(ip);
+    const body = request.body as { password?: unknown };
+    if (!verifyExportPassword(body?.password)) {
+      recordExportFailure(ip);
+      throw new HttpError(
+        401,
+        "INVALID_EXPORT_PASSWORD",
+        "密码不正确，请重试。",
+      );
+    }
+    clearExportFailures(ip);
+    setExportSession(request, response);
+    response.setHeader("Cache-Control", "no-store");
+    response.json({ ok: true, expiresInMs: exportSessionDurationMs() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/bootstrap", async (_request, response, next) => {
@@ -119,6 +223,20 @@ app.get("/api/reference-pdf", async (_request, response, next) => {
 
 app.post("/api/export-pdf", async (request, response, next) => {
   try {
+    if (!exportPasswordConfigured()) {
+      throw new HttpError(
+        503,
+        "EXPORT_PASSWORD_NOT_CONFIGURED",
+        "服务器未配置 PDF 导出密码，导出功能已关闭。",
+      );
+    }
+    if (!hasExportSession(request)) {
+      throw new HttpError(
+        401,
+        "EXPORT_AUTH_REQUIRED",
+        "请输入导出密码后再生成 PDF。",
+      );
+    }
     const body = request.body as {
       pagesHtml?: unknown;
       style?: unknown;
@@ -195,6 +313,17 @@ app.use(
     });
   },
 );
+
+if (exportPasswordConfigured()) {
+  console.log("[api] PDF export password protection enabled.");
+} else {
+  console.warn(
+    "[api] PDF_EXPORT_PASSWORD is not set; PDF export is disabled.",
+  );
+}
+if (appAccessPassword) {
+  console.log("[api] Site-wide Basic Auth enabled.");
+}
 
 const server = app.listen(port, host, () => {
   console.log(`[api] Resume Studio API listening on http://${host}:${port}`);
