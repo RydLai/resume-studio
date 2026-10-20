@@ -173,7 +173,7 @@ export function ResumePages({
 }: ResumePagesProps) {
   return (
     <div
-      className={`r-pages r-template--${style.template}`}
+      className={`r-pages r-template--${style.template} r-section-style--${style.sectionStyle}`}
       ref={pagesRef}
       style={styleToCssVars(style) as CSSProperties}
     >

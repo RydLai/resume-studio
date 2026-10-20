@@ -10,6 +10,8 @@ export type PhotoShape = "square" | "rounded" | "circle";
 
 export type TemplateId = "classic" | "modern" | "minimal";
 
+export type SectionStyleId = "tab" | "bar" | "underline" | "outline";
+
 export const TEMPLATE_OPTIONS: Array<{
   id: TemplateId;
   label: string;
@@ -20,8 +22,20 @@ export const TEMPLATE_OPTIONS: Array<{
   { id: "minimal", label: "极简", note: "衬线姓名 · 细线标题" },
 ];
 
+export const SECTION_STYLE_OPTIONS: Array<{
+  id: SectionStyleId;
+  label: string;
+  note: string;
+}> = [
+  { id: "tab", label: "黑底标签", note: "原稿斜切" },
+  { id: "bar", label: "左侧色条", note: "主题色竖线" },
+  { id: "underline", label: "文字下划线", note: "短下划线 + 细线" },
+  { id: "outline", label: "描边标签", note: "空心主题色边框" },
+];
+
 export interface StyleConfig {
   template: TemplateId;
+  sectionStyle: SectionStyleId;
   /** 正文字号，pt */
   bodySize: number;
   /** 行高倍数 */
@@ -74,6 +88,7 @@ export const FONT_OPTIONS: Array<{ id: FontId; label: string; note?: string }> =
 
 export const DEFAULT_STYLE: StyleConfig = {
   template: "classic",
+  sectionStyle: "tab",
   bodySize: 9.75,
   lineHeight: 1.54,
   headingSize: 12.75,
@@ -117,6 +132,11 @@ export function normalizeStyle(input: unknown): StyleConfig {
   )
     ? (source.template as TemplateId)
     : DEFAULT_STYLE.template;
+  const sectionStyle = SECTION_STYLE_OPTIONS.some(
+    (option) => option.id === source.sectionStyle,
+  )
+    ? (source.sectionStyle as SectionStyleId)
+    : DEFAULT_STYLE.sectionStyle;
   const color =
     typeof source.themeColor === "string" &&
     /^#[0-9a-f]{6}$/i.test(source.themeColor)
@@ -165,6 +185,7 @@ export function normalizeStyle(input: unknown): StyleConfig {
 
   return {
     template,
+    sectionStyle,
     bodySize: round(clamp(num(source.bodySize, DEFAULT_STYLE.bodySize), 7.5, 14), 0.25),
     lineHeight: round(
       clamp(num(source.lineHeight, DEFAULT_STYLE.lineHeight), 1.15, 2.2),

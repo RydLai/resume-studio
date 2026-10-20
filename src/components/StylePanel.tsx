@@ -4,6 +4,7 @@ import {
   FONT_OPTIONS,
   PAGE_HEIGHT_MM,
   PAGE_WIDTH_MM,
+  SECTION_STYLE_OPTIONS,
   TEMPLATE_OPTIONS,
   type StyleConfig,
 } from "../resume/style";
@@ -252,6 +253,40 @@ export function StylePanel({
                       ✓
                     </span>
                   ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="style-group">
+          <h3 className="style-group-title">大节标题</h3>
+          <div
+            className="section-style-grid"
+            role="radiogroup"
+            aria-label="大节标题样式"
+          >
+            {SECTION_STYLE_OPTIONS.map((option) => {
+              const active = style.sectionStyle === option.id;
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  role="radio"
+                  aria-checked={active}
+                  className={`section-style-card${active ? " is-active" : ""}`}
+                  onClick={() => onChange({ sectionStyle: option.id })}
+                >
+                  <span
+                    className={`section-style-sample section-style-sample--${option.id}`}
+                    aria-hidden="true"
+                  >
+                    教育背景
+                  </span>
+                  <span className="section-style-text">
+                    <span className="section-style-name">{option.label}</span>
+                    <span className="section-style-note">{option.note}</span>
+                  </span>
                 </button>
               );
             })}

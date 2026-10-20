@@ -531,3 +531,142 @@
 .r-template--minimal .r-hr {
   border-top: 0.5pt solid #bbbbbb;
 }
+
+/* =========================================================
+   大节标题（## 教育背景 等）可切换样式
+   ========================================================= */
+
+/* 黑底斜切标签：文字块与斜切尾巴同色，并轻微重叠，消除 1px 接缝。 */
+.r-section-style--tab .r-section-tab {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  vertical-align: top;
+}
+
+.r-section-style--tab .r-section-tab-text {
+  display: block;
+  padding: 2.4pt 11pt 2.4pt 7.5pt;
+  background: var(--r-theme);
+  color: #ffffff;
+  font-size: var(--r-body);
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.r-section-style--tab .r-section-tab-tail {
+  display: block;
+  width: 7.5pt;
+  flex: 0 0 7.5pt;
+  margin-left: -0.8pt;
+  background: var(--r-theme);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.r-section-style--tab .r-section-rule {
+  height: 0.75pt;
+  margin-top: -0.75pt;
+  background: var(--r-theme);
+  opacity: 1;
+}
+
+/* 左侧主题色竖线 + 轻分隔线 */
+.r-section-style--bar .r-section-tab {
+  display: block;
+  max-width: 100%;
+  padding-left: 7pt;
+  border-left: 3pt solid var(--r-theme);
+  background: transparent;
+}
+
+.r-section-style--bar .r-section-tab-text {
+  display: block;
+  padding: 0 0 1.8pt;
+  background: transparent;
+  color: #111111;
+  font-size: calc(var(--r-body) * 0.95);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.r-section-style--bar .r-section-tab-tail {
+  display: none;
+}
+
+.r-section-style--bar .r-section-rule {
+  height: 0.6pt;
+  margin-top: 2.2pt;
+  background: var(--r-theme);
+  opacity: 0.22;
+}
+
+/* 文字短下划线 + 全宽细线 */
+.r-section-style--underline .r-section-tab {
+  display: block;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.r-section-style--underline .r-section-tab-text {
+  display: inline-block;
+  padding: 0 0 2.4pt;
+  border-bottom: 1.6pt solid var(--r-theme);
+  background: transparent;
+  color: #111111;
+  font-size: calc(var(--r-body) * 1.02);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.r-section-style--underline .r-section-tab-tail {
+  display: none;
+}
+
+.r-section-style--underline .r-section-rule {
+  height: 0.5pt;
+  margin-top: 3pt;
+  background: #d8d8d2;
+  opacity: 1;
+}
+
+/* 空心主题色描边标签 */
+.r-section-style--outline .r-section-tab {
+  display: block;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.r-section-style--outline .r-section-tab-text {
+  display: inline-block;
+  padding: 1.7pt 8pt 1.9pt;
+  border: 0.9pt solid var(--r-theme);
+  border-radius: 2pt;
+  background: transparent;
+  color: var(--r-theme);
+  font-size: calc(var(--r-body) * 0.9);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.r-section-style--outline .r-section-tab-tail {
+  display: none;
+}
+
+.r-section-style--outline .r-section-rule {
+  height: 0.5pt;
+  margin-top: 4pt;
+  background: var(--r-theme);
+  opacity: 0.18;
+}

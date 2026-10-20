@@ -72,6 +72,25 @@ try {
   );
   console.log("4. 登录 Cookie 为 HttpOnly");
 
+  await page.getByRole("button", { name: "样式", exact: true }).click();
+  await page.waitForSelector(".style-panel");
+  for (const [label, className] of [
+    ["左侧色条", "r-section-style--bar"],
+    ["文字下划线", "r-section-style--underline"],
+    ["描边标签", "r-section-style--outline"],
+    ["黑底标签", "r-section-style--tab"],
+  ]) {
+    await page.getByRole("radio", { name: new RegExp(`^${label}`) }).click();
+    await page.waitForTimeout(250);
+    const previewClass = await page
+      .locator(".preview-pages")
+      .getAttribute("class");
+    assert.ok(previewClass?.includes(className));
+  }
+  await page.getByRole("button", { name: "样式", exact: true }).click();
+  await page.waitForSelector(".style-panel", { state: "detached" });
+  console.log("4b. 四种大节标题样式可切换");
+
   original = await page.evaluate(async () => {
     const response = await fetch("/api/resume");
     if (!response.ok) throw new Error(`GET /api/resume: ${response.status}`);

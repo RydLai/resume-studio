@@ -215,7 +215,7 @@ export function PreviewPane({
               style={{ zoom: zoom / 100 } as CSSProperties}
             >
               <div
-                className={`preview-pages r-template--${style.template}`}
+                className={`preview-pages r-template--${style.template} r-section-style--${style.sectionStyle}`}
                 ref={pagesRef}
                 style={cssVars}
                 onPointerDown={handlePhotoPointerDown}
@@ -248,7 +248,7 @@ export function PreviewPane({
       </div>
 
       <div className="preview-measure" aria-hidden="true">
-        <div className={`r-pages r-template--${style.template}`} style={cssVars}>
+        <div className={`r-pages r-template--${style.template} r-section-style--${style.sectionStyle}`} style={cssVars}>
           <div className="r-measure-inner" ref={measureRef}>
             <ResumeFlow blocks={blocks} style={style} photoSrc={photoSrc} />
           </div>
